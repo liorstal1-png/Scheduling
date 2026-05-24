@@ -436,9 +436,15 @@ var _blkId=null,_wrkId=null,_sprId=null,_aId=null,_ewId=null,_esId=null,_selBlkI
 // ── dates ─────────────────────────────────────────────────────────────────────
 var TODAY=new Date(); TODAY.setHours(12,0,0,0);
 
-function pd(s){ // parse YYYY-MM-DD
+function pd(s){ // parse date - supports YYYY-MM-DD and DD/MM/YYYY
+  if(!s)return new Date(NaN);
+  if(s.indexOf('/')>=0){
+    var p=s.split('/');
+    if(p[2] && p[2].length===4) return new Date(+p[2],+p[1]-1,+p[0],12,0,0,0); // DD/MM/YYYY
+    return new Date(+p[0],+p[1]-1,+p[2],12,0,0,0); // MM/DD/YYYY fallback
+  }
   var p=s.split('-');
-  return new Date(+p[0],+p[1]-1,+p[2],12,0,0,0);
+  return new Date(+p[0],+p[1]-1,+p[2],12,0,0,0); // YYYY-MM-DD
 }
 function fd(d){ // format to YYYY-MM-DD
   var y=d.getFullYear(),m=d.getMonth()+1,dd=d.getDate();
@@ -452,7 +458,7 @@ function addD(d,n){return new Date(d.getTime()+n*86400000);}
 function diffW(a,b){return (b.getTime()-a.getTime())/(7*86400000);}
 
 // ── timeline state ────────────────────────────────────────────────────────────
-var TL_START=sunday(addW(TODAY,-4));
+var TL_START=sunday(TODAY);
 var TL_WEEKS=64;
 
 function WW(){
@@ -1491,8 +1497,8 @@ function openRangeM(){
   om('rangemodal');
 }
 function quickRange(months){
-  TL_START=sunday(addW(TODAY,-4));
-  TL_WEEKS=Math.round(months*4.33)+4;
+  TL_START=sunday(TODAY);
+  TL_WEEKS=Math.round(months*4.33);
   autoZoom();
   cm('rangemodal');render();scrollToToday();
 }
