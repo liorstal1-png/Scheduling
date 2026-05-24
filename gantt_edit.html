@@ -2122,22 +2122,41 @@ function importAssignments(event){
     var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
     if(lines.length<2)return;
     var delim=lines[0].indexOf('	')>=0?'	':',';
-    var added=0,errors=0;
+    var headers=lines[0].split(delim).map(function(c){return c.replace(/^"|"$/g,'').trim();});
+    var iW=headers.indexOf('עובד');if(iW<0)iW=0;
+    var iP=headers.indexOf('פרויקט');if(iP<0)iP=1;
+    var iS=headers.indexOf('התחלה');if(iS<0)iS=headers.indexOf('מתאריכ');if(iS<0)iS=2;
+    var iE=headers.indexOf('סיום');if(iE<0)iE=headers.indexOf('עד תאריך');if(iE<0)iE=3;
+    var iN=headers.indexOf('הערה');if(iN<0)iN=4;
+    console.log('Import columns: worker='+iW+' project='+iP+' start='+iS+' end='+iE+' TL_START='+fd(TL_START));
+    var added=0,errors=0,skipped=0;
     for(var i=1;i<lines.length;i++){
       var cols=lines[i].split(delim).map(function(c){return c.replace(/^"|"$/g,'').trim();});
-      // format: עובד, פרויקט/העדרות, התחלה, סיום, הערה
-      var wname=cols[0],pname=cols[1],start=cols[2],end=cols[3],note=cols[4]||'';
-      if(!wname||!pname||!start||!end){errors++;continue;}
-      var w=D.workers.find(function(w){return w.name===wname;});
-      if(!w){console.log('Worker not found:',wname,'Available:',D.workers.map(function(x){return x.name;}));errors++;continue;}
+      var wname=cols[iW]||'',pname=cols[iP]||'',startDate=cols[iS]||'',endDate=cols[iE]||'',note=iN>=0?cols[iN]||'':'';
+      if(!wname||!pname||!startDate||!endDate){errors++;continue;}
+      var w=D.workers.find(function(x){return x.name===wname;});
+      if(!w){console.log('Worker not found:',wname);errors++;continue;}
       var absence=pname==='העדרות';
       var pid=absence?'__absence__':'';
-      if(!absence){var proj=D.projects.find(function(p){return p.name===pname||p.code===pname;});if(!proj){console.log('Project not found:',pname,'Available:',D.projects.map(function(x){return x.name;}));errors++;continue;}pid=proj.id;}
-      D.assignments.push({id:'a'+Date.now()+'_'+i,workerId:w.id,projectId:pid,start:start,end:end,note:note,absence:absence,absenceReason:absence?'העדרות':''});
+      if(!absence){
+        var proj=D.projects.find(function(p){return p.name===pname||p.code===pname;});
+        if(!proj){console.log('Project not found:',pname);errors++;continue;}
+        pid=proj.id;
+      }
+      var dup=D.assignments.find(function(a){return a.workerId===w.id&&a.projectId===pid&&a.start===startDate&&a.end===endDate;});
+      if(dup){skipped++;continue;}
+      D.assignments.push({id:'a'+Date.now()+'_'+i,workerId:w.id,projectId:pid,start:startDate,end:endDate,note:note,absence:absence,absenceReason:absence?'העדרות':''});
       added++;
     }
+    console.log('Import done: added='+added+' errors='+errors+' TL_START='+fd(TL_START)+' TL_WEEKS='+TL_WEEKS);
+    if(added>0){
+      var last=D.assignments[D.assignments.length-1];
+      console.log('Last assignment: start='+last.start+' end='+last.end+' dateX(start)='+Math.round(dateX(last.start))+' dateX(end)='+Math.round(dateX(last.end))+' TW='+totalW());
+    }
+    window._justImported=true;
     snapshot();save();render();
-    showToast('יובאו '+added+' שיבוצים'+(errors?' ('+errors+' שגיאות)':''));
+    setTimeout(function(){window._justImported=false;},5000);
+    showToast('יובאו '+added+' שיבוצים'+(skipped?' ('+skipped+' כפולים)':'')+(errors?' (שגיאות:'+errors+')':''));
   };
   reader.readAsText(file);event.target.value='';
 }
