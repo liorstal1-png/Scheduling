@@ -162,15 +162,17 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
     const db = getFirestore(app);
     const DOC_REF = doc(db, 'gantt', 'data');
 
-    // Override save: write to Firestore
-    window._fbSave = async function(data) {
-      try {
-        await setDoc(DOC_REF, { payload: JSON.stringify(data) });
-      } catch(e) {
-        console.error('Firebase save error:', e);
-        // Fallback to localStorage
-        localStorage.setItem('gantt7', JSON.stringify(data));
-      }
+    // Override save: write to Firestore (debounced)
+    var _fbSaveTimer = null;
+    window._fbSave = function(data) {
+      clearTimeout(_fbSaveTimer);
+      _fbSaveTimer = setTimeout(async function(){
+        try {
+          await setDoc(DOC_REF, { payload: JSON.stringify(data) });
+        } catch(e) {
+          console.error('Firebase save error:', e);
+        }
+      }, 1000);
     };
 
     // Override load: read from Firestore
@@ -1509,7 +1511,7 @@ function scrollToToday(){
     var x=dateX(fd(TODAY));
     // today is at x pixels from left in our RTL layout
     // scroll so today is near the right side of view
-    wrap.scrollLeft=Math.max(0,x-wrap.clientWidth*0.7);
+    wrap.scrollLeft=Math.max(0,x-wrap.clientWidth*0.15);
   },50);
 }
 
@@ -1612,7 +1614,7 @@ function endProjDrag(e){
     var x=e.clientX-tlRect.left+scrollOffset;
     x=Math.max(0,x);
     var wi=TL_WEEKS-1-Math.floor(x/WW());
-    console.log('Drop: clientX='+e.clientX+' tlLeft='+tlRect.left+' scrollOffset='+scrollOffset+' x='+x+' WW='+WW()+' wi='+wi+' date='+fd(wkDate(wi)));
+    console.log('Drop: clientX='+e.clientX+', tlLeft='+Math.round(tlRect.left)+', scrollLeft='+tlwrap.scrollLeft+', scrollWidth='+tlwrap.scrollWidth+', clientWidth='+tlwrap.clientWidth+', scrollOffset='+Math.round(scrollOffset)+', x='+Math.round(x)+', WW='+WW()+', wi='+wi+', date='+fd(wkDate(wi)));
     wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
     var start=fd(wkDate(wi));
     if(_dProj.absence){
