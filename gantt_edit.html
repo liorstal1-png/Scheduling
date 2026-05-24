@@ -198,7 +198,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
       try {
         const remote = JSON.parse(snap.data().payload);
         // Only update if different from current
-        if (JSON.stringify(remote) !== JSON.stringify(window.D)) {
+        if (!window._justImported && JSON.stringify(remote) !== JSON.stringify(window.D)) {
           window.D = remote;
           if(!window.D.milestones) window.D.milestones = [];
           if(!window.D.groups) window.D.groups = [];
@@ -1686,7 +1686,10 @@ function importSprints(event){
       D.sprints.push({id:'sp'+Date.now()+'_'+i,name:name,start:start,end:end});
       added++;
     }
-    snapshot();save();render();
+    snapshot();
+    window._justImported=true;
+    save();render();
+    setTimeout(function(){window._justImported=false;},3000);
     var msg='יובאו '+added+' ספרינטים';
     if(skipped) msg+=' ('+skipped+' כבר קיימים)';
     if(errors) msg+=' ('+errors+' שגיאות)';
