@@ -2100,10 +2100,10 @@ function importAssignments(event){
       var wname=cols[0],pname=cols[1],start=cols[2],end=cols[3],note=cols[4]||'';
       if(!wname||!pname||!start||!end){errors++;continue;}
       var w=D.workers.find(function(w){return w.name===wname;});
-      if(!w){errors++;continue;}
+      if(!w){console.log('Worker not found:',wname,'Available:',D.workers.map(function(x){return x.name;}));errors++;continue;}
       var absence=pname==='העדרות';
       var pid=absence?'__absence__':'';
-      if(!absence){var proj=D.projects.find(function(p){return p.name===pname||p.code===pname;});if(!proj){errors++;continue;}pid=proj.id;}
+      if(!absence){var proj=D.projects.find(function(p){return p.name===pname||p.code===pname;});if(!proj){console.log('Project not found:',pname,'Available:',D.projects.map(function(x){return x.name;}));errors++;continue;}pid=proj.id;}
       D.assignments.push({id:'a'+Date.now()+'_'+i,workerId:w.id,projectId:pid,start:start,end:end,note:note,absence:absence,absenceReason:absence?'העדרות':''});
       added++;
     }
