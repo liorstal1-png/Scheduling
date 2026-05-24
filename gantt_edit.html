@@ -611,6 +611,21 @@ function initPanelResize(handleId,panelId,minW,maxW){
     document.addEventListener('mouseup',onUp);
   });
 }
+function updateStickyLabels(){
+  var wrap=document.getElementById('tlwrap');
+  if(!wrap)return;
+  var scrollLeft=wrap.scrollLeft;
+  var clientWidth=wrap.clientWidth;
+  document.querySelectorAll('.blk').forEach(function(blk){
+    var t=blk.querySelector('.btitle');
+    if(!t)return;
+    var blkLeft=parseFloat(blk.style.left)||0;
+    var blkWidth=parseFloat(blk.style.width)||0;
+    var visibleRightEdge=Math.min(blkLeft+blkWidth,scrollLeft+clientWidth);
+    var textOffset=visibleRightEdge-blkLeft-blkWidth;
+    t.style.transform='translateX('+Math.min(0,textOffset)+'px)';
+  });
+}
 function render(){
   window.D = D;
   var TW=totalW(), WW_=WW();
@@ -993,11 +1008,15 @@ function render(){
 
   // sync scroll
   var wrap=document.getElementById('tlwrap'), sb=document.getElementById('sbody');
-  wrap.onscroll=function(){sb.scrollTop=wrap.scrollTop;};
+  wrap.onscroll=function(){
+    sb.scrollTop=wrap.scrollTop;
+    updateStickyLabels();
+  };
 
   renderSidebar(gs);
   renderProjPanel();
   renderFilter();
+  setTimeout(updateStickyLabels,50);
 }
 
 // inline note replaced by contenteditable on block
@@ -1472,8 +1491,8 @@ function openRangeM(){
   om('rangemodal');
 }
 function quickRange(months){
-  TL_START=sunday(TODAY);
-  TL_WEEKS=Math.round(months*4.33);
+  TL_START=sunday(addW(TODAY,-4));
+  TL_WEEKS=Math.round(months*4.33)+4;
   autoZoom();
   cm('rangemodal');render();scrollToToday();
 }
