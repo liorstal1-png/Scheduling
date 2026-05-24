@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>שיבוץ עובדים v51</title>
+<title>שיבוץ עובדים v52</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -2168,6 +2168,7 @@ function importAssignments(event){
 }
 
 // ── init ────────────────────────────────────────────────────────────────────── ────────────────────────────────────────────────────────────────────── ────────────────────────────────────────────────────────────────────── ──────────────────────────────────────────────────────────────────────
+console.log("INIT TL_START="+fd(TL_START)+" TODAY="+fd(TODAY));
 renderColors();quickRange(3);
 setTimeout(function(){
   initPanelResize("rh-pp","ppanel",80,300);
