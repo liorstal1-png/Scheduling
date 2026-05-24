@@ -144,6 +144,71 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .ci:hover{background:var(--bg);}
 .ci.del{color:#E24B4A;}
 </style>
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOIwsCqDyivx8kdCUQHEVPTWFYFfB-yFw",
+      authDomain: "scheduling-a5647.firebaseapp.com",
+      projectId: "scheduling-a5647",
+      storageBucket: "scheduling-a5647.firebasestorage.app",
+      messagingSenderId: "1086458270592",
+      appId: "1:1086458270592:web:1dff903b00ed4e62426765"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const DOC_REF = doc(db, 'gantt', 'data');
+
+    // Override save: write to Firestore
+    window._fbSave = async function(data) {
+      try {
+        await setDoc(DOC_REF, { payload: JSON.stringify(data) });
+      } catch(e) {
+        console.error('Firebase save error:', e);
+        // Fallback to localStorage
+        localStorage.setItem('gantt7', JSON.stringify(data));
+      }
+    };
+
+    // Override load: read from Firestore
+    window._fbLoad = async function() {
+      try {
+        const snap = await getDoc(DOC_REF);
+        if (snap.exists()) {
+          return JSON.parse(snap.data().payload);
+        }
+      } catch(e) {
+        console.error('Firebase load error:', e);
+      }
+      // Fallback to localStorage
+      const local = localStorage.getItem('gantt7');
+      return local ? JSON.parse(local) : null;
+    };
+
+    // Real-time listener: update when another user changes data
+    let _ignoreNext = false;
+    onSnapshot(DOC_REF, (snap) => {
+      if (!snap.exists()) return;
+      if (_ignoreNext) { _ignoreNext = false; return; }
+      try {
+        const remote = JSON.parse(snap.data().payload);
+        // Only update if different from current
+        if (JSON.stringify(remote) !== JSON.stringify(window.D)) {
+          window.D = remote;
+          if(!window.D.milestones) window.D.milestones = [];
+          if(!window.D.groups) window.D.groups = [];
+          if(!window.D.baselines) window.D.baselines = [];
+          if(typeof window.render === 'function') window.render();
+          window.showToast && window.showToast('הנתונים עודכנו 🔄');
+        }
+      } catch(e) {}
+    });
+
+    window._fbIgnoreNext = function() { _ignoreNext = true; };
+  </script>
 </head>
 <body>
 
@@ -357,7 +422,10 @@ function snapshot(){
   if(_undoStack.length>10)_undoStack.shift();
   _redoStack=[];
 }
-function save(){try{localStorage.setItem('gantt7',JSON.stringify(D));}catch(e){}}
+function save(){
+  try{localStorage.setItem('gantt7',JSON.stringify(D));}catch(e){}
+  if(window._fbSave){window._fbIgnoreNext&&window._fbIgnoreNext();window._fbSave(D);}
+}
 
 var COLS=['#E24B4A','#378ADD','#3BA868','#E07B20','#9B59B6','#D4AC0D','#00BCD4','#E91E8C','#00897B','#FF5722','#1565C0','#F06292','#2E7D32','#FF6F00','#4527A0','#827717','#006064','#880E4F','#BF360C','#0D47A1','#33691E','#E65100','#4A148C','#F57F17','#004D40','#B71C1C','#1A237E','#F9A825','#01579B','#1B5E20'];
 var selCol=0, ZL=100, FT='all', FG='all', FP='all';
@@ -542,6 +610,7 @@ function initPanelResize(handleId,panelId,minW,maxW){
   });
 }
 function render(){
+  window.D = D;
   var TW=totalW(), WW_=WW();
   var gs=getGroups();
   var BL_ROW_H=(_activeBL!==null&&getBaselines()[_activeBL])?20:0;
@@ -1968,27 +2037,7 @@ function openSummary(){
     +'.np-body{overflow:hidden;flex:1;}'
     +'.tl{flex:1;overflow:auto;position:relative;}'
     +'table{border-collapse:collapse;direction:ltr;}'
-    +'</style></head>'
-    +'<body>'
-    +'<div class="topbar">📊 מבט על — שיבוץ לפי פרויקטים</div>'
-    +'<div class="main">'
-    +'<div class="np"><div class="np-hdr">פרויקטים</div><div class="np-body" id="np-body">'+nameRows+'</div></div>'
-    +'<div class="tl" id="tl-wrap">'
-    +'<table><thead>'
-    +'<tr style="height:'+SPH+'px;background:#F5F4F0;border-bottom:1px solid #E0DED8;position:sticky;top:0;z-index:10;">'+sprCells+'</tr>'
-    +'<tr style="position:sticky;top:'+SPH+'px;z-index:10;">'+mCells+'</tr>'
-    +'<tr style="border-bottom:2px solid #E0DED8;position:sticky;top:'+(SPH+MH)+'px;z-index:10;">'+wCells+'</tr>'
-    +'</thead><tbody>'+tlRows+'</tbody></table>'
-    +blockOverlays+msOverlays
-    +'</div></div>'
-    +'<div id="ms-tt" style="position:fixed;font-size:11px;font-weight:600;padding:4px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,.25);display:none;color:#fff;"></div>'
-    +'<script>'
-    +'var tl=document.getElementById("tl-wrap");'
-    +'var nb=document.getElementById("np-body");'
-    +'tl.addEventListener("scroll",function(){nb.scrollTop=tl.scrollTop;});'
-    +'document.addEventListener("mouseover",function(e){var d=e.target.closest(".ms-dot-summary");var t=document.getElementById("ms-tt");if(d){t.textContent=d.dataset.name+" · "+d.dataset.date;t.style.background=d.dataset.color;t.style.display="block";}else{t.style.display="none";}});'
-    +'document.addEventListener("mousemove",function(e){var t=document.getElementById("ms-tt");if(t.style.display!=="none"){t.style.left=(e.clientX+10)+"px";t.style.top=(e.clientY-28)+"px";}});'
-    +'<\/script>'
+    +'</style>'
     +'</body></html>';
 
   var win=window.open('','_blank');
