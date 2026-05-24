@@ -245,8 +245,14 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
     </div>
   </div>
   <button class="btn" onclick="openSummary()">📊 מבט על</button>
-  <button class="btn" onclick="exportCSV()">📥 Excel</button>
-  <button class="btn" onclick="exportProjects()">📁 ייצוא פרויקטים</button>
+  <div style="position:relative;display:inline-block;" id="export-menu-wrap">
+    <button class="btn" onclick="toggleExportMenu()">📥 ייצוא ▾</button>
+    <div id="export-menu" style="display:none;position:absolute;top:100%;right:0;background:var(--sur);border:1px solid var(--brd);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:100;min-width:160px;padding:4px 0;margin-top:2px;direction:rtl;">
+      <div class="ci" onclick="exportCSV();document.getElementById('export-menu').style.display='none';">📋 ייצוא שיבוץ (Excel)</div>
+      <div class="ci edit-only" onclick="exportWorkers();document.getElementById('export-menu').style.display='none';">👥 ייצוא עובדים</div>
+      <div class="ci edit-only" onclick="exportProjects();document.getElementById('export-menu').style.display='none';">📁 ייצוא פרויקטים</div>
+    </div>
+  </div>
   <button class="btn" id="lock-btn" onclick="toggleEdit()" style="margin-right:auto;">🔒 עריכה</button>
 </div>
 
@@ -429,7 +435,7 @@ function save(){
   if(window._fbSave){window._fbIgnoreNext&&window._fbIgnoreNext();window._fbSave(D);}
 }
 
-var COLS=['#E24B4A','#378ADD','#3BA868','#E07B20','#9B59B6','#D4AC0D','#00BCD4','#E91E8C','#00897B','#FF5722','#1565C0','#F06292','#2E7D32','#FF6F00','#4527A0','#827717','#006064','#880E4F','#BF360C','#0D47A1','#33691E','#E65100','#4A148C','#F57F17','#004D40','#B71C1C','#1A237E','#F9A825','#01579B','#1B5E20'];
+var COLS=['#E24B4A','#378ADD','#3BA868','#E07B20','#9B59B6','#D4AC0D','#00BCD4','#E91E8C','#00897B','#FF5722','#1565C0','#F06292','#2E7D32','#FF6F00','#4527A0','#827717','#006064','#880E4F','#BF360C','#0D47A1','#33691E','#E65100','#4A148C','#F57F17','#004D40','#B71C1C','#1A237E','#F9A825','#01579B','#1B5E20','#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#98D8C8','#F7DC6F','#BB8FCE','#85C1E9','#F1948A','#82E0AA','#FAD7A0','#AED6F1','#D2B4DE'];
 var selCol=0, ZL=100, FT='all', FG='all', FP='all';
 var _blkId=null,_wrkId=null,_sprId=null,_aId=null,_ewId=null,_esId=null,_selBlkId=null;
 
@@ -615,21 +621,6 @@ function initPanelResize(handleId,panelId,minW,maxW){
     }
     document.addEventListener('mousemove',onMove);
     document.addEventListener('mouseup',onUp);
-  });
-}
-function updateStickyLabels(){
-  var wrap=document.getElementById('tlwrap');
-  if(!wrap)return;
-  var scrollLeft=wrap.scrollLeft;
-  var clientWidth=wrap.clientWidth;
-  document.querySelectorAll('.blk').forEach(function(blk){
-    var t=blk.querySelector('.btitle');
-    if(!t)return;
-    var blkLeft=parseFloat(blk.style.left)||0;
-    var blkWidth=parseFloat(blk.style.width)||0;
-    var visibleRightEdge=Math.min(blkLeft+blkWidth,scrollLeft+clientWidth);
-    var textOffset=visibleRightEdge-blkLeft-blkWidth;
-    t.style.transform='translateX('+Math.min(0,textOffset)+'px)';
   });
 }
 function render(){
@@ -886,7 +877,7 @@ function render(){
         var tlwrap3=document.getElementById('tlwrap');
         var tlRect3=tlwrap3.getBoundingClientRect();
         var scrollOff=tlwrap3.scrollWidth-tlwrap3.clientWidth-tlwrap3.scrollLeft;
-        var x=e.clientX-tlRect3.left+scrollOff;
+        var x=e.clientX-tlRect3.left+tlwrap3.scrollLeft;
         var wi=TL_WEEKS-1-Math.floor(x/WW());
         wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
         _hovWeekDate=fd(wkDate(wi));
@@ -1016,13 +1007,12 @@ function render(){
   var wrap=document.getElementById('tlwrap'), sb=document.getElementById('sbody');
   wrap.onscroll=function(){
     sb.scrollTop=wrap.scrollTop;
-    updateStickyLabels();
   };
+  sb.onscroll=function(){wrap.scrollTop=sb.scrollTop;};
 
   renderSidebar(gs);
   renderProjPanel();
   renderFilter();
-  setTimeout(updateStickyLabels,50);
 }
 
 // inline note replaced by contenteditable on block
@@ -1056,7 +1046,7 @@ function renderSidebar(gs){
         var tlwrap3=document.getElementById('tlwrap');
         var tlRect3=tlwrap3.getBoundingClientRect();
         var scrollOff=tlwrap3.scrollWidth-tlwrap3.clientWidth-tlwrap3.scrollLeft;
-        var x=e.clientX-tlRect3.left+scrollOff;
+        var x=e.clientX-tlRect3.left+tlwrap3.scrollLeft;
         var wi=TL_WEEKS-1-Math.floor(x/WW());
         wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
         _hovWeekDate=fd(wkDate(wi));
@@ -1402,7 +1392,7 @@ function renderEpColors(){
     var isUsed=used.indexOf(c)>=0;
     var isSelected=i===selEpCol;
     return '<div class="copt'+(isSelected?' on':'')+(isUsed&&!isSelected?' used':'')+'" style="background:'+c+';'+(isUsed&&!isSelected?'opacity:.25;cursor:not-allowed;':'')+'"'+(isUsed&&!isSelected?'title="צבע כבר בשימוש"':'')+' onclick="'+(isUsed&&!isSelected?'':('selEpCol='+i+';renderEpColors()'))+'"></div>';
-  }).join('');
+  }).join('\r\n');
 }
 function saveEditProject(){
   snapshot();
@@ -1418,8 +1408,7 @@ function renderColors(){
   document.getElementById('pcrow').innerHTML=COLS.map(function(c,i){
     var isUsed=used.indexOf(c)>=0;
     var isSelected=i===selCol;
-    return '<div class="copt'+(isSelected?' on':'')+(isUsed&&!isSelected?' used':'')+'" style="background:'+c+';'+(isUsed&&!isSelected?'opacity:.25;cursor:not-allowed;':'')+'"'+(isUsed&&!isSelected?'title="צבע כבר בשימוש"':'')+' onclick="'+(isUsed&&!isSelected?'':('selCol='+i+';renderColors()'))+'"></div>';
-  }).join('');
+    return '<div class="copt'+(isSelected?' on':'')+(isUsed&&!isSelected?' used':'')+'" style="background:'+c+';'+(isUsed&&!isSelected?'opacity:.25;cursor:not-allowed;':'')+'"'+(isUsed&&!isSelected?'title="צבע כבר בשימוש"':'')+' onclick="'+(isUsed&&!isSelected?'':('selCol='+i+';renderColors()'))+'"></div>'}).join('\r\n');
 }
 function saveProject(){
   snapshot();
@@ -1549,7 +1538,7 @@ function exportCSV(){
     var t=w&&w.team?D.teams.find(function(x){return x.id===w.team;}):null;
     rows.push([w?w.name:'',t?t.name:'ללא צוות',p?p.name:'',a.start,a.end,a.note||'']);
   });
-  var csv='\uFEFF'+rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var csv='\uFEFF'+rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\r\n');
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a');a.href=url;a.download='שיבוץ_עובדים.csv';
@@ -1633,13 +1622,14 @@ function endProjDrag(e){
   });
   if(targetRow&&targetRow.dataset.wid){
     var tlwrap=document.getElementById('tlwrap');
-    var tlRect=tlwrap.getBoundingClientRect();
-    // RTL: scrollLeft counts from right edge
+    // Get actual left position of tlwrap
+    var tlLeft=0;
+    var el=tlwrap;
+    while(el){tlLeft+=el.offsetLeft;el=el.offsetParent;}
     var scrollOffset=tlwrap.scrollWidth-tlwrap.clientWidth-tlwrap.scrollLeft;
-    var x=e.clientX-tlRect.left+scrollOffset;
+    var x=e.clientX-tlLeft+scrollOffset;
     x=Math.max(0,x);
     var wi=TL_WEEKS-1-Math.floor(x/WW());
-    console.log('Drop: clientX='+e.clientX+', tlLeft='+Math.round(tlRect.left)+', scrollLeft='+tlwrap.scrollLeft+', scrollWidth='+tlwrap.scrollWidth+', clientWidth='+tlwrap.clientWidth+', scrollOffset='+Math.round(scrollOffset)+', x='+Math.round(x)+', WW='+WW()+', wi='+wi+', date='+fd(wkDate(wi)));
     wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
     var start=fd(wkDate(wi));
     if(_dProj.absence){
@@ -1890,7 +1880,7 @@ function openMsM(id){
   _msId=id;
   document.getElementById('ms-t').textContent=id?'ערוך אבן דרך':'הוסף אבן דרך';
   var ps=document.getElementById('msp');
-  ps.innerHTML=D.projects.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('');
+  ps.innerHTML=D.projects.map(function(p){return '<option value="'+p.id+'">'+p.n}).join('\r\n');
   if(id){
     var ms=D.milestones.find(function(x){return x.id===id;});
     if(ms){document.getElementById('msn').value=ms.name;document.getElementById('msd').value=ms.date;ps.value=ms.projectId;}
@@ -2028,8 +2018,14 @@ function openSummary(){
   // Name rows + timeline rows
   var nameRows='', tlRows='', blockOverlays='', msOverlays='';
   var rowIdx=0;
+  var tlEnd=new Date(TL_START.getTime()+TL_WEEKS*7*86400000);
   D.projects.forEach(function(proj){
-    var assigns=D.assignments.filter(function(a){return a.projectId===proj.id;});
+    var assigns=D.assignments.filter(function(a){
+      if(a.projectId!==proj.id)return false;
+      var s=pd(a.start),e=pd(a.end);
+      // only include if assignment overlaps visible range
+      return s<=tlEnd && e>=TL_START;
+    });
     if(!assigns.length)return;
     var minStart=assigns.reduce(function(m,a){return a.start<m?a.start:m;},assigns[0].start);
     var maxEnd=assigns.reduce(function(m,a){return a.end>m?a.end:m;},assigns[0].end);
@@ -2072,7 +2068,23 @@ function openSummary(){
     +'.np-body{overflow:hidden;flex:1;}'
     +'.tl{flex:1;overflow:auto;position:relative;}'
     +'table{border-collapse:collapse;direction:ltr;}'
-    +'</style>'
+    +'</style></head>'
+    +'<body>'
+    +'<div class="topbar">📊 מבט על — שיבוץ לפי פרויקטים</div>'
+    +'<div class="main">'
+    +'<div class="np"><div class="np-hdr">פרויקטים</div><div class="np-body" id="np-body">'+nameRows+'</div></div>'
+    +'<div class="tl" id="tl-wrap">'
+    +'<div style="position:relative;">'
+    +'<table><thead>'
+    +'<tr style="height:'+SPH+'px;background:#F5F4F0;border-bottom:1px solid #E0DED8;position:sticky;top:0;z-index:10;">'+sprCells+'</tr>'
+    +'<tr style="position:sticky;top:'+SPH+'px;z-index:10;">'+mCells+'</tr>'
+    +'<tr style="border-bottom:2px solid #E0DED8;position:sticky;top:'+(SPH+MH)+'px;z-index:10;">'+wCells+'</tr>'
+    +'</thead><tbody>'+tlRows+'</tbody></table>'
+    +blockOverlays+msOverlays
+    +'</div>'
+    +'</div></div>'
+    +'<div id="ms-tt" style="position:fixed;font-size:11px;font-weight:600;padding:4px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,.25);display:none;color:#fff;"></div>'
+    +'<script>var tl=document.getElementById("tl-wrap");var nb=document.getElementById("np-body");if(tl&&nb)tl.addEventListener("scroll",function(){nb.scrollTop=tl.scrollTop;});document.addEventListener("mouseover",function(e){var d=e.target.closest(".ms-dot-summary");var t=document.getElementById("ms-tt");if(d){t.textContent=d.dataset.name+" · "+d.dataset.date;t.style.background=d.dataset.color;t.style.display="block";}else{t.style.display="none";}});document.addEventListener("mousemove",function(e){var t=document.getElementById("ms-tt");if(t.style.display!=="none"){t.style.left=(e.clientX+10)+"px";t.style.top=(e.clientY-28)+"px";}});<\/script>'
     +'</body></html>';
 
   var win=window.open('','_blank');
@@ -2165,6 +2177,26 @@ function importAssignments(event){
     showToast('יובאו '+added+' שיבוצים'+(skipped?' ('+skipped+' כפולים)':'')+(errors?' (שגיאות:'+errors+')':''));
   };
   reader.readAsText(file);event.target.value='';
+}
+
+function toggleExportMenu(){
+  var m=document.getElementById('export-menu');
+  if(m.style.display==='none'){
+    m.style.display='block';
+    setTimeout(function(){document.addEventListener('click',function h(e){
+      if(!e.target.closest('#export-menu-wrap')){m.style.display='none';document.removeEventListener('click',h);}
+    },{once:true});},10);
+  } else { m.style.display='none'; }
+}
+function exportWorkers(){
+  var rows=[['עובד','קבוצה','צוות']];
+  D.workers.forEach(function(w){
+    var grp=D.groups.find(function(g){return g.id===w.group;});
+    var team=D.teams.find(function(t){return t.id===w.team;});
+    rows.push([w.name,grp?grp.name:'',team?team.name:'']);
+  });
+  var csv='﻿'+rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\r\n');
+  var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);a.download='עובדים.csv';a.click();
 }
 
 // ── init ────────────────────────────────────────────────────────────────────── ────────────────────────────────────────────────────────────────────── ────────────────────────────────────────────────────────────────────── ──────────────────────────────────────────────────────────────────────
