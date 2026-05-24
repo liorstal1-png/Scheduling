@@ -1688,6 +1688,7 @@ function importSprints(event){
     }
     snapshot();
     window._justImported=true;
+    if(D.assignments.length>0){var last=D.assignments[D.assignments.length-1];console.log('Before render: assignments='+D.assignments.length+' last.start='+last.start+' last.end='+last.end+' TL_START='+fd(TL_START)+' TL_WEEKS='+TL_WEEKS+' dateX(start)='+Math.round(dateX(last.start))+' dateX(end)='+Math.round(dateX(last.end)));}
     save();render();
     setTimeout(function(){window._justImported=false;},3000);
     var msg='יובאו '+added+' ספרינטים';
