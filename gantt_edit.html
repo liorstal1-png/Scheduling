@@ -1609,6 +1609,8 @@ function endProjDrag(e){
     // RTL: scrollLeft counts from right edge
     var scrollOffset=tlwrap.scrollWidth-tlwrap.clientWidth-tlwrap.scrollLeft;
     var x=e.clientX-tlRect.left+scrollOffset;
+    // adjust for week boundary
+    x=Math.max(0,x);
     var wi=TL_WEEKS-1-Math.floor(x/WW());
     wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
     var start=fd(wkDate(wi));
@@ -1618,7 +1620,7 @@ function endProjDrag(e){
       D.assignments.push({id:'a'+Date.now(),workerId:targetRow.dataset.wid,projectId:'__absence__',start:start,end:fd(wkDate(Math.min(wi+1,TL_WEEKS-1))),note:'',absence:true,absenceReason:'העדרות'});
       save();render();
     } else {
-      snapshot();D.assignments.push({id:'a'+Date.now(),workerId:targetRow.dataset.wid,projectId:_dProj.id,start:start,end:fd(wkDate(Math.min(wi+3,TL_WEEKS-1))),note:''});
+      snapshot();D.assignments.push({id:'a'+Date.now(),workerId:targetRow.dataset.wid,projectId:_dProj.id,start:start,end:fd(wkDate(Math.min(wi+1,TL_WEEKS-1))),note:''});
       save();render();
     }
   }
@@ -1948,6 +1950,7 @@ function setEditMode(on){
   });
   // cursor on blk
   document.querySelectorAll('.blk').forEach(function(el){el.style.cursor=on?'grab':'default';});
+  render();
 }
 
 // ── summary view (new tab) ───────────────────────────────────────────────────
