@@ -472,6 +472,7 @@ function diffW(a,b){return (b.getTime()-a.getTime())/(7*86400000);}
 // ── timeline state ────────────────────────────────────────────────────────────
 var TL_START=sunday(TODAY);
 var TL_WEEKS=64;
+var FP_SET=null;
 
 function WW(){
   var base=Math.round(80*ZL/100);
