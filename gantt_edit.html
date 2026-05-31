@@ -250,7 +250,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
   <button class="btn btn-p edit-only" onclick="openAM('','','','',null)">שבץ</button>
   <div id="absence-drag-btn" class="btn edit-only" title="גרור לציר הזמן לשיבוץ העדרות" style="cursor:grab;display:inline-flex;align-items:center;gap:5px;user-select:none;"><span style="width:10px;height:10px;border-radius:50%;background:#2C2C2C;display:inline-block;"></span><span>העדרות</span></div>
   <button class="btn edit-only" onclick="openMsM(null)">🚩 אבן דרך</button>
-  <button class="btn edit-only" onclick="openRangeM()">📅 טווח</button>
+  <button class="btn" onclick="openRangeM()">📅 טווח</button>
   <div style="position:relative;display:inline-block;">
     <button class="btn edit-only" onclick="toggleImportMenu()">📂 ייבוא ▾</button>
     <div id="import-menu" style="display:none;position:absolute;top:100%;right:0;background:var(--sur);border:1px solid var(--brd);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:100;min-width:150px;padding:4px 0;margin-top:2px;">
@@ -542,6 +542,29 @@ function WW(){
   return Math.max(base, Math.floor(avail/TL_WEEKS));
 }
 function totalW(){return TL_WEEKS*WW();}
+function clientXtoWi(clientX){
+  var tlwrap=document.getElementById('tlwrap');
+  var rect=tlwrap.getBoundingClientRect();
+  var xFromLeft=clientX-rect.left;
+  var scrollOffset=tlwrap.scrollWidth-tlwrap.clientWidth-tlwrap.scrollLeft;
+  var x=xFromLeft+scrollOffset;
+  var wi=TL_WEEKS-1-Math.floor(x/WW());
+  return Math.max(0,Math.min(TL_WEEKS-1,wi));
+}
+function clientXtoWi(clientX){
+  // ממיר מיקום עכבר (clientX) ל-week index
+  // tlwrap הוא direction:rtl, גלילה מתנהגת הפוך
+  var tlwrap=document.getElementById('tlwrap');
+  var rect=tlwrap.getBoundingClientRect();
+  // מרחק מקצה שמאל של tlwrap
+  var xFromLeft=clientX-rect.left;
+  // בRTL: scroll מגדיל כשגוללים שמאלה
+  // x בתוך tlinner = scrollWidth - clientWidth - scrollLeft + xFromLeft
+  var scrollOffset=tlwrap.scrollWidth-tlwrap.clientWidth-tlwrap.scrollLeft;
+  var x=xFromLeft+scrollOffset;
+  var wi=TL_WEEKS-1-Math.floor(x/WW());
+  return Math.max(0,Math.min(TL_WEEKS-1,wi));
+}
 function wkDate(i){return addW(TL_START,i);}
 function dateX(s){return (TL_WEEKS-1-diffW(TL_START,pd(s)))*WW();}
 function xDate(x){return fd(addW(TL_START,TL_WEEKS-1-Math.round(x/WW())));}
@@ -902,12 +925,7 @@ function render(){
       // dblclick to assign
       (function(tid){ghdr.addEventListener('dblclick',function(e){
         if(e.target.closest('.blk'))return;
-        var tlwrap2=document.getElementById('tlwrap');
-        var tlRect2=tlwrap2.getBoundingClientRect();
-        var scrollOffset2=tlwrap2.scrollWidth-tlwrap2.clientWidth-tlwrap2.scrollLeft;
-        var x=e.clientX-tlRect2.left+scrollOffset2;
-        var wi=TL_WEEKS-1-Math.floor(x/WW_);
-        wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
+        var wi=clientXtoWi(e.clientX);
         openAM('team_'+tid,fd(wkDate(wi)),fd(wkDate(wi+3)),'',null);
       });})(g.team.id);
     }
@@ -1024,24 +1042,13 @@ function render(){
       row.addEventListener('mouseenter',function(){_hovWrkId=wid;});
       row.addEventListener('mouseleave',function(){_hovWrkId=null;_hovWeekDate=null;});
       row.addEventListener('mousemove',function(e){
-        var tlwrap3=document.getElementById('tlwrap');
-        var tlRect3=tlwrap3.getBoundingClientRect();
-        var scrollOff=tlwrap3.scrollWidth-tlwrap3.clientWidth-tlwrap3.scrollLeft;
-        var x=e.clientX-tlRect3.left+tlwrap3.scrollLeft;
-        var wi=TL_WEEKS-1-Math.floor(x/WW());
-        wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
-        _hovWeekDate=fd(wkDate(wi));
+        _hovWeekDate=fd(wkDate(clientXtoWi(e.clientX)));
       });
     })(w.id);
       row.addEventListener('dblclick',function(e){
         if(!EDIT_MODE)return;
         if(e.target.closest('.blk'))return;
-        var tlwrap2=document.getElementById('tlwrap');
-        var tlRect2=tlwrap2.getBoundingClientRect();
-        var scrollOffset2=tlwrap2.scrollWidth-tlwrap2.clientWidth-tlwrap2.scrollLeft;
-        var x=e.clientX-tlRect2.left+scrollOffset2;
-        var wi=TL_WEEKS-1-Math.floor(x/WW_);
-        wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
+        var wi=clientXtoWi(e.clientX);
         openAM(w.id,fd(wkDate(wi)),fd(wkDate(wi+3)),'',null);
       });
       body.appendChild(row);
@@ -1221,13 +1228,7 @@ function renderSidebar(gs){
       row.addEventListener('mouseenter',function(){_hovWrkId=wid;});
       row.addEventListener('mouseleave',function(){_hovWrkId=null;_hovWeekDate=null;});
       row.addEventListener('mousemove',function(e){
-        var tlwrap3=document.getElementById('tlwrap');
-        var tlRect3=tlwrap3.getBoundingClientRect();
-        var scrollOff=tlwrap3.scrollWidth-tlwrap3.clientWidth-tlwrap3.scrollLeft;
-        var x=e.clientX-tlRect3.left+tlwrap3.scrollLeft;
-        var wi=TL_WEEKS-1-Math.floor(x/WW());
-        wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
-        _hovWeekDate=fd(wkDate(wi));
+        _hovWeekDate=fd(wkDate(clientXtoWi(e.clientX)));
       });
     })(w.id);
       el.appendChild(row);
@@ -1301,8 +1302,7 @@ function buildProjItem(p, isChild){
     });
     item.addEventListener('click',function(e){
       if(e.target===del||e.target===edt||e.target===grip)return;
-      if(!EDIT_MODE){FP=FP===proj.id?'all':proj.id;render();return;}
-      FP=proj.id;render();
+      // סינון רק דרך ה-✓, לא לחיצה ישירה
     });
   })(p);
   return item;
@@ -1565,7 +1565,7 @@ function makeResize(handle,blk,a){
     snapshot();
     var l=parseFloat(blk.style.left),w=parseFloat(blk.style.width);
     // right edge = l+w → start_week = TL_WEEKS-1 - round((l+w)/WW)
-    var startWi=TL_WEEKS-1-Math.round((l+w)/WW());
+    var startWi=TL_WEEKS-1-Math.floor((l+w)/WW());
     snapshot();
     a.start=fd(wkDate(Math.max(0,Math.min(TL_WEEKS-1,startWi))));
     save();render();
@@ -2030,7 +2030,7 @@ function makeResizeLeft(handle,blk,a){
     snapshot();
     var l=parseFloat(blk.style.left);
     // left edge = l → end_week = TL_WEEKS-1 - round(l/WW)
-    var endWi=TL_WEEKS-1-Math.round(l/WW());
+    var endWi=TL_WEEKS-1-Math.floor(l/WW());
     snapshot();
     a.end=fd(wkDate(Math.max(0,Math.min(TL_WEEKS-1,endWi))));
     save();render();
@@ -2089,16 +2089,7 @@ function endProjDrag(e){
       targetRow=r;
   });
   if(targetRow&&targetRow.dataset.wid){
-    var tlwrap=document.getElementById('tlwrap');
-    // Get actual left position of tlwrap
-    var tlLeft=0;
-    var el=tlwrap;
-    while(el){tlLeft+=el.offsetLeft;el=el.offsetParent;}
-    var scrollOffset=tlwrap.scrollWidth-tlwrap.clientWidth-tlwrap.scrollLeft;
-    var x=e.clientX-tlLeft+scrollOffset;
-    x=Math.max(0,x);
-    var wi=TL_WEEKS-1-Math.floor(x/WW());
-    wi=Math.max(0,Math.min(TL_WEEKS-1,wi));
+    var wi=clientXtoWi(e.clientX);
     var start=fd(wkDate(wi));
     if(_dProj.absence){
       // absence: direct assign for 1 week, user can resize
@@ -2231,8 +2222,8 @@ document.addEventListener('keydown',function(e){
     var diff=pd(_clipboard.end).getTime()-pd(_clipboard.start).getTime();
     var newStart, newEnd;
     if(_hovWeekDate){
-      // paste at hovered week position
-      newStart=_hovWeekDate;
+      // paste at hovered week position — snap to hovered week
+      newStart=fd(sunday(pd(_hovWeekDate)));
       newEnd=fd(new Date(pd(newStart).getTime()+diff));
     } else if(targetWid===_clipboard.workerId){
       // same worker, no hover position - shift 1 week after original
