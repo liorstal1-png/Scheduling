@@ -40,10 +40,25 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .plist{flex:1;overflow-y:auto;padding:5px;}
 .pitem{display:flex;align-items:center;gap:6px;padding:5px;border-radius:5px;}
 .pitem:hover{background:var(--bg);}
+.pitem.child{padding-right:18px;}
 .psq{width:11px;height:11px;border-radius:2px;flex-shrink:0;}
 .pname{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
 .pdel{opacity:0;background:none;border:none;cursor:pointer;color:var(--fnt);font-size:11px;padding:0 2px;}
 .pitem:hover .pdel{opacity:1;}
+.pparent{display:flex;align-items:center;gap:5px;padding:5px 5px 3px;border-radius:5px;cursor:pointer;user-select:none;}
+.pparent:hover{background:var(--bg);}
+.pparent-stripe{width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;min-height:14px;}
+.pparent-name{font-size:11px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pparent-arrow{font-size:10px;color:var(--mut);transition:transform .15s;flex-shrink:0;}
+.pparent-arrow.open{transform:rotate(90deg);}
+.pparent:hover .pdel{opacity:1;}
+.pchildren{overflow:hidden;}
+.pfilter-check{width:14px;height:14px;border:1.5px solid var(--brd);border-radius:3px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:background .1s,border-color .1s;}
+.pfilter-check.active{background:var(--acc);border-color:var(--acc);color:#fff;}
+.pfilter-check.partial{background:#e8f0fb;border-color:var(--acc);color:var(--acc);}
+.pfilter-check{width:14px;height:14px;border:1.5px solid var(--brd);border-radius:3px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:background .1s,border-color .1s;}
+.pfilter-check.active{background:var(--acc);border-color:var(--acc);color:#fff;}
+.pfilter-check.partial{background:#e8f0fb;border-color:var(--acc);color:var(--acc);}
 
 /* workers sidebar */
 .sidebar{width:190px;min-width:120px;flex-shrink:0;display:flex;flex-direction:column;border-left:2px solid var(--brd);background:var(--sur);z-index:20;direction:rtl;overflow:hidden;}
@@ -65,8 +80,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 /* Sprint row */
 .sprrow{display:flex;align-items:center;border-bottom:1px solid var(--brd);background:var(--bg);direction:ltr;}
 .spr-empty{flex-shrink:0;}
-.spr-filled{flex-shrink:0;background:#1E3A5F;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;cursor:pointer;overflow:hidden;white-space:nowrap;padding:0 6px;border-radius:4px;margin:3px 1px;}
+.spr-filled{flex-shrink:0;background:#1E3A5F;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;cursor:pointer;white-space:nowrap;padding:0 8px;border-radius:4px;margin:3px 1px;position:relative;user-select:none;}
 .spr-filled:hover{background:#2a4f80;}
+.spr-filled.spr-resize-r{cursor:col-resize;}
+.spr-filled.spr-resize-l{cursor:col-resize;}
 
 /* Month row */
 .mrow{display:flex;border-bottom:1px solid var(--brd);background:var(--sur);direction:ltr;}
@@ -93,21 +110,24 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .bl-row{border-bottom:1px solid #E0DED8;position:relative;display:flex;direction:ltr;}
 .bl-cell{border-right:1px solid #d8d6d0;flex-shrink:0;}
 .bl-blk{position:absolute;top:2px;border-radius:3px;opacity:.55;background-repeating-linear-gradient:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,.3) 3px,rgba(255,255,255,.3) 6px);pointer-events:none;}
-.milestone-line{position:absolute;top:8px;width:2px;z-index:8;pointer-events:none;border-left:2px dashed;opacity:.55;}
-.milestone-dot{position:absolute;top:2px;transform:translateX(-50%);z-index:9;cursor:pointer;width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3);transition:transform .15s;}
-.milestone-dot:hover{transform:translateX(-50%) scale(1.4);}
+.milestone-line{display:none;}
+.milestone-flag{position:absolute;cursor:pointer;z-index:16;border-radius:3px;color:#fff;font-size:10px;font-weight:700;padding:3px 7px;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,.25);transition:opacity .15s;max-width:120px;overflow:hidden;text-overflow:ellipsis;font-family:'Heebo',sans-serif;direction:rtl;}
+.milestone-flag:hover{opacity:.82;}
 .milestone-tooltip{position:fixed;background:#1E3A5F;color:#fff;font-size:11px;font-weight:600;padding:4px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:500;box-shadow:0 2px 8px rgba(0,0,0,.25);display:none;}
-.blk{position:absolute;top:5px;border-radius:5px;cursor:grab;display:flex;align-items:center;padding:0 6px;font-size:11px;color:#fff;overflow:hidden;user-select:none;z-index:5;gap:3px;direction:rtl;}
+.blk{position:absolute;top:5px;border-radius:5px;cursor:grab;display:flex;align-items:center;padding:0 6px;font-size:11px;color:#fff;overflow:clip;user-select:none;z-index:5;gap:3px;direction:rtl;}
 .blk:hover{opacity:.92;box-shadow:0 2px 8px rgba(0,0,0,.2);}
 .blk-tooltip{position:fixed;background:rgba(255,255,255,.15);backdrop-filter:blur(6px);color:#1A5FA8;font-size:12px;padding:5px 10px;border-radius:7px;border:1px solid rgba(107,159,204,.25);pointer-events:none;z-index:500;max-width:220px;white-space:pre-wrap;direction:rtl;display:none;line-height:1.5;}
 .blk:hover .bedit{opacity:1;}
 .blk.selected{outline:2px solid rgba(255,255,255,.8);outline-offset:-2px;}
 .blk.drag{opacity:.65;cursor:grabbing;z-index:100;}
-.btitle{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;flex-shrink:0;max-width:60%;}
+.blk-content{display:flex;align-items:center;gap:3px;position:sticky;right:6px;max-width:calc(100% - 12px);overflow:hidden;flex-shrink:0;}
+.blk-content{display:flex;align-items:center;gap:3px;position:sticky;right:6px;max-width:calc(100% - 12px);overflow:hidden;flex-shrink:0;}
+.blk-content{display:flex;align-items:center;gap:3px;position:sticky;right:6px;max-width:calc(100% - 12px);overflow:hidden;flex-shrink:0;}
+.btitle{font-weight:600;white-space:nowrap;font-size:11px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;}
 
 .bedit{opacity:0;background:rgba(255,255,255,.22);border:none;cursor:pointer;font-size:10px;padding:1px 4px;border-radius:3px;color:#fff;flex-shrink:0;}
 .binput{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);border-radius:3px;color:#fff;font-family:'Heebo',sans-serif;font-size:11px;padding:1px 5px;width:90px;outline:none;direction:rtl;}
-.blk-notefield{font-size:10px;color:rgba(255,255,255,.95);outline:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:text;border-radius:3px;padding:1px 3px;direction:rtl;flex:1;min-width:0;}
+.blk-notefield{font-size:10px;color:rgba(255,255,255,.95);outline:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:text;border-radius:3px;padding:1px 3px;direction:rtl;flex:0 1 auto;min-width:0;}
 .blk-notefield:focus{background:rgba(255,255,255,.15);white-space:normal;overflow:visible;}
 
 .binput::placeholder{color:rgba(255,255,255,.6);}
@@ -205,6 +225,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
           if(!window.D.milestones) window.D.milestones = [];
           if(!window.D.groups) window.D.groups = [];
           if(!window.D.baselines) window.D.baselines = [];
+          if(!window.D.parentProjects) window.D.parentProjects = [];
           if(typeof window.render === 'function') window.render();
           window.showToast && window.showToast('הנתונים עודכנו 🔄');
         }
@@ -259,6 +280,8 @@ body:not(.edit-mode) .edit-only{display:none!important;}
     <div id="more-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--sur);border:1px solid var(--brd);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:100;min-width:150px;padding:4px 0;margin-top:2px;direction:rtl;">
       <div class="ci" onclick="openSummary();document.getElementById('more-menu').style.display='none';">📊 מבט על</div>
       <div class="ci" onclick="openAnalytics();document.getElementById('more-menu').style.display='none';">📈 ניתוחים</div>
+      <div style="height:1px;background:var(--brd);margin:4px 0;"></div>
+      <div class="ci" id="toggle-al-mi" onclick="toggleShowAl();">👁 הצג שיבוץ על</div>
     </div>
   </div>
   <button class="btn" id="lock-btn" onclick="toggleEdit()" style="margin-right:auto;">🔒 עריכה</button>
@@ -269,7 +292,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
 <div class="main">
   <!-- order in LTR: ppanel | sidebar | timeline -->
   <div class="ppanel" id="ppanel">
-    <div class="ppanel-hdr">פרויקטים <button class="btn btn-sm edit-only" onclick="openPM()">+</button></div>
+    <div class="ppanel-hdr">פרויקטים <span style="display:flex;gap:4px;"><button class="btn btn-sm edit-only" onclick="openPM()" title="הוסף פרויקט">+</button><button class="btn btn-sm edit-only" onclick="openParentPM()" title="הוסף פרויקט אב" style="font-size:10px;">📁</button></span></div>
     <div style="padding:4px 8px;border-bottom:1px solid var(--brd);">
       <select id="pm-filter" onchange="FPM=this.value;render();" style="width:100%;font-family:Heebo,sans-serif;font-size:11px;padding:3px 5px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);color:var(--txt);direction:rtl;">
         <option value="">כל מנהלי הפרויקטים</option>
@@ -335,9 +358,22 @@ body:not(.edit-mode) .edit-only{display:none!important;}
       <div class="fld"><label>סטטוס</label>
         <select id="ps"><option value="בביצוע">בביצוע</option><option value="לאחר HLP">לאחר HLP</option><option value="שיבוץ על">שיבוץ על</option></select>
       </div>
+      <div class="fld" id="p-parent-fld"><label>פרויקט אב</label><select id="p-parent"><option value="">ללא</option></select></div>
       <div class="fld"><label>צבע</label><div class="crow" id="pcrow"></div></div>
     </div>
     <div class="mfoot"><button class="btn" onclick="cm('pmodal')">ביטול</button><button class="btn btn-p" onclick="saveProject()">שמור</button></div>
+  </div>
+</div>
+
+<!-- Parent Project modal -->
+<div class="ov" id="ppmodal" onclick="if(event.target===this)cm('ppmodal')">
+  <div class="modal">
+    <div class="mhdr"><span class="mtitle" id="pp-t">הוסף פרויקט אב</span><button class="mx" onclick="cm('ppmodal')">✕</button></div>
+    <div class="mbody">
+      <div class="fld"><label>שם פרויקט אב</label><input id="ppn" placeholder="שם..."/></div>
+      <div class="fld"><label>צבע</label><div class="crow" id="ppcrow"></div></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="cm('ppmodal')">ביטול</button><button class="btn btn-p" onclick="saveParentProject()">שמור</button></div>
   </div>
 </div>
 
@@ -401,6 +437,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
 </div>
 
 <div class="blk-tooltip" id="blk-tooltip"></div>
+<div class="milestone-tooltip" id="ms-tooltip"></div>
 <!-- Milestone modal -->
 <div class="ov" id="msmodal" onclick="if(event.target===this)cm('msmodal')">
   <div class="modal">
@@ -414,7 +451,8 @@ body:not(.edit-mode) .edit-only{display:none!important;}
   </div>
 </div>
 
-<div class="ctx" id="bctx"><div class="ci" onclick="cEditBlk()">✏️ ערוך</div><div class="ci del" onclick="cDelBlk()">🗑️ מחק</div></div>
+<div class="ctx" id="bctx"><div class="ci" onclick="cEditBlk()">✏️ ערוך</div><div class="ci" id="bctx-al" onclick="cToggleAl()">⬜ סמן שיבוץ על</div><div class="ci del" onclick="cDelBlk()">🗑️ מחק</div></div>
+<div class="ctx" id="msctx"><div class="ci" onclick="cEditMs()">✏️ ערוך אבן דרך</div><div class="ci del" onclick="cDelMs()">🗑️ מחק</div></div>
 <div class="ctx" id="wctx"><div class="ci" onclick="cEditWrk()">✏️ ערוך עובד</div><div class="ci del" onclick="cDelWrk()">🗑️ מחק עובד</div></div>
 <div class="ctx" id="sctx"><div class="ci" onclick="cEditSpr()">✏️ ערוך ספרינט</div><div class="ci del" onclick="cDelSpr()">🗑️ מחק ספרינט</div></div>
 
@@ -432,6 +470,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
       <div class="fld"><label>סטטוס</label>
         <select id="ep-status"><option value="בביצוע">בביצוע</option><option value="לאחר HLP">לאחר HLP</option><option value="שיבוץ על">שיבוץ על</option></select>
       </div>
+      <div class="fld" id="ep-parent-fld"><label>פרויקט אב</label><select id="ep-parent"><option value="">ללא</option></select></div>
       <div class="fld"><label>צבע</label><div class="crow" id="ep-colors"></div></div>
     </div>
     <div class="mfoot"><button class="btn" onclick="cm('epmodal')">ביטול</button><button class="btn btn-p" onclick="saveEditProject()">שמור</button></div>
@@ -440,11 +479,14 @@ body:not(.edit-mode) .edit-only{display:none!important;}
 
 <script>
 // ── data ──────────────────────────────────────────────────────────────────────
-var D={workers:[],projects:[],assignments:[],teams:[],sprints:[],groups:[],milestones:[]};
-try{var _s=localStorage.getItem('gantt7');if(_s)D=JSON.parse(_s);}catch(e){}
+var D={workers:[],projects:[],assignments:[],teams:[],sprints:[],groups:[],milestones:[],parentProjects:[]};
+try{var _s=localStorage.getItem('gantt7');if(_s)D=JSON.parse(_s);}catch(e){console.error('localStorage load error',e);}
+console.log('DATA LOADED: projects='+D.projects.length+' workers='+D.workers.length+' assignments='+D.assignments.length);
 if(!D.sprints)D.sprints=[];
 if(!D.groups)D.groups=[];
-  if(!D.milestones)D.milestones=[];
+if(!D.milestones)D.milestones=[];
+if(!D.parentProjects)D.parentProjects=[];
+
 var _undoStack=[], _redoStack=[];
 function snapshot(){
   _undoStack.push(JSON.stringify(D));
@@ -458,6 +500,8 @@ function save(){
 
 var COLS=['#E24B4A','#378ADD','#3BA868','#E07B20','#9B59B6','#D4AC0D','#00BCD4','#E91E8C','#00897B','#FF5722','#1565C0','#F06292','#2E7D32','#FF6F00','#4527A0','#827717','#006064','#880E4F','#BF360C','#0D47A1','#33691E','#E65100','#4A148C','#F57F17','#004D40','#B71C1C','#1A237E','#F9A825','#01579B','#1B5E20','#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#FFEAA7','#DDA0DD','#98D8C8','#F7DC6F','#BB8FCE','#85C1E9','#F1948A','#82E0AA','#FAD7A0','#AED6F1','#D2B4DE'];
 var selCol=0, ZL=100, FT='all', FG='all', FP='all';
+var FP_FILTER=new Set();
+var SHOW_AL=false; // false=הסתר שיבוץ על, true=הצג // project ids to filter (empty = show all)
 var _blkId=null,_wrkId=null,_sprId=null,_aId=null,_ewId=null,_esId=null,_selBlkId=null;
 
 // ── dates ─────────────────────────────────────────────────────────────────────
@@ -507,12 +551,10 @@ function fws(){
   var ws=D.workers;
   if(FG!=='all') ws=ws.filter(function(w){return w.group===FG;});
   if(FT!=='all') ws=ws.filter(function(w){return w.team===FT;});
-  if(FP!=='all'){
+  var _fpActive=(FP_SET&&FP_SET.size>0)?FP_SET:(FP!=='all'?new Set([FP]):null);
+  if(_fpActive&&_fpActive.size>0){
     ws=ws.filter(function(w){
-      return D.assignments.some(function(a){return a.workerId===w.id&&a.projectId===FP;}) ||
-             D.assignments.some(function(a){return a.workerId==='team_'+D.teams.find(function(t){
-               return D.workers.some(function(ww){return ww.id===w.id&&ww.team===t.id;});
-             })&&a.projectId===FP;});
+      return D.assignments.some(function(a){return a.workerId===w.id&&_fpActive.has(a.projectId);});
     });
   }
   return ws;
@@ -699,17 +741,68 @@ function render(){
       inner.appendChild(spDel);
       inner.title=sp.name+': '+sp.start+' - '+sp.end;
       inner.addEventListener('mouseenter',function(){spDel.style.opacity='1';});
-      inner.addEventListener('mouseleave',function(){spDel.style.opacity='0';});
-      (function(s){
-        inner.onclick=function(e){e.stopPropagation();_sprId=s.id;_selSprId=s.id;openCtx('sctx',e);};
-        inner.addEventListener('mouseenter',function(){_selSprId=s.id;});
-        spDel.onclick=function(e){e.stopPropagation();snapshot();D.sprints=D.sprints.filter(function(x){return x.id!==s.id;});save();render();};
-      })(sp);
+      inner.addEventListener('mouseleave',function(){spDel.style.opacity='0';spDel.style.opacity='0';inner.classList.remove('spr-resize-r','spr-resize-l');});
       var wrap=document.createElement('div');
+      wrap.style.cssText='display:flex;align-items:center;padding-left:1px;';
       wrap.style.width=(count*WW_)+'px'; wrap.style.height=SPH+'px';
-      wrap.style.display='flex'; wrap.style.alignItems='center';
-      wrap.style.paddingLeft='1px';
       wrap.appendChild(inner); sprrow.appendChild(wrap);
+      (function(s, inn, wrp){
+        var EDGE=10; // px from edge = resize zone
+        inn.addEventListener('mousemove',function(e){
+          if(!EDIT_MODE)return;
+          var r=inn.getBoundingClientRect();
+          var fromRight=r.right-e.clientX, fromLeft=e.clientX-r.left;
+          inn.classList.toggle('spr-resize-r', fromRight<=EDGE);
+          inn.classList.toggle('spr-resize-l', fromLeft<=EDGE && fromRight>EDGE);
+        });
+        inn.addEventListener('click',function(e){
+          var r=inn.getBoundingClientRect();
+          if(r.right-e.clientX<=EDGE||e.clientX-r.left<=EDGE)return; // was a resize drag
+          e.stopPropagation();_sprId=s.id;_selSprId=s.id;openCtx('sctx',e);
+        });
+        inn.addEventListener('mouseenter',function(){_selSprId=s.id;});
+        spDel.onclick=function(e){e.stopPropagation();snapshot();D.sprints=D.sprints.filter(function(x){return x.id!==s.id;});save();render();};
+        inn.addEventListener('mousedown',function(e){
+          if(!EDIT_MODE)return;
+          if(e.target===spDel)return;
+          var r=inn.getBoundingClientRect();
+          var fromRight=r.right-e.clientX, fromLeft=e.clientX-r.left;
+          var isRight=fromRight<=EDGE, isLeft=fromLeft<=EDGE&&!isRight;
+          if(!isRight&&!isLeft)return; // not a resize
+          e.stopPropagation();e.preventDefault();
+          var sx=e.clientX;
+          document.body.style.cursor='col-resize';
+          function mv(ev){ /* cursor only, no layout change */ }
+          function up(ev){
+            document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
+            document.body.style.cursor='';
+            inn.classList.remove('spr-resize-r','spr-resize-l');
+            // RTL: right = past (start), left = future (end)
+            // dragging right (+dx) on right edge = moving start earlier = more weeks
+            // dragging left (-dx) on left edge  = moving end later    = more weeks
+            var dx=ev.clientX-sx;
+            var wkDelta=Math.round(Math.abs(dx)/WW_);
+            if(wkDelta===0){render();return;}
+            var sp2=D.sprints.find(function(x){return x.id===s.id;});if(!sp2){render();return;}
+            snapshot();
+            if(isRight){
+              // right edge = start date. drag right(+dx)=earlier start, drag left(-dx)=later start
+              var startD=pd(sp2.start);
+              startD.setDate(startD.getDate()+(dx>0?-1:1)*wkDelta*7);
+              var ns=fd(sunday(startD));
+              if(pd(ns)<pd(sp2.end)) sp2.start=ns;
+            } else {
+              // left edge = end date. drag left(-dx)=later end, drag right(+dx)=earlier end
+              var endD=pd(sp2.end);
+              endD.setDate(endD.getDate()+(dx<0?1:-1)*wkDelta*7);
+              var ne=fd(sunday(endD));
+              if(pd(ne)>pd(sp2.start)) sp2.end=ne;
+            }
+            save();render();
+          }
+          document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+        });
+      })(sp, inner, wrap);
     }
   }
 
@@ -741,6 +834,9 @@ function render(){
   // ── body ──
   var body=document.getElementById('tlbody');
   body.innerHTML=''; body.style.width=TW+'px'; body.style.height=totalH+'px';
+  // clear milestone flags from tl-hdr
+  var _th=document.getElementById('tl-hdr');
+  if(_th){Array.prototype.forEach.call(_th.querySelectorAll('.milestone-flag'),function(el){el.remove();});}
   // selection cleared only on delete or new selection
 
   gs.forEach(function(g){
@@ -765,6 +861,7 @@ function render(){
       ghdr.dataset.wid='team_'+g.team.id;
       // render assignments for this team header
       D.assignments.filter(function(a){return a.workerId==='team_'+g.team.id;}).forEach(function(a){
+        if(!SHOW_AL&&a.isAl===true)return;
         if(a.absence){var proj={name:a.absenceReason||'העדרות',color:'#2C2C2C',status:''};}else{var proj=D.projects.find(function(p){return p.id===a.projectId;});if(!proj)return;if(FP_SET&&FP_SET.size>0&&!FP_SET.has(a.projectId))return;
         if(FPM&&proj&&proj.pm!==FPM)return;}
         var x=dateX(a.end);
@@ -775,17 +872,20 @@ function render(){
         blk.style.left=x+'px'; blk.style.width=width+'px';
         blk.style.height=(GH-6)+'px'; blk.style.top='3px';
         var tg=document.createElement('span'); tg.className='btitle';
-        tg.textContent=a.absence?(a.absenceReason||'העדרות'):proj.name;
+        var _pp1=proj.parentId?(D.parentProjects||[]).find(function(x){return x.id===proj.parentId;}):null;
+        tg.textContent=a.absence?(a.absenceReason||'העדרות'):(_pp1?_pp1.name+' - '+proj.name:proj.name);
         if(a.absence){blk.style.background='#2C2C2C';tg.style.color='rgba(255,255,255,.85)';}
         else{blk.style.background=getDisplayColor(proj);if(proj.status==='שיבוץ על')tg.style.color='rgba(0,0,0,.75)';}
-        blk.appendChild(tg);
+        var wrap1=document.createElement('div'); wrap1.className='blk-content';
+        wrap1.appendChild(tg);
         var noteEl=document.createElement('div'); noteEl.className='blk-notefield';
         noteEl.contentEditable=EDIT_MODE?'true':'false'; noteEl.textContent=a.note||'';
         noteEl.onclick=function(e){e.stopPropagation();}; noteEl.ondblclick=function(e){e.stopPropagation();};
         noteEl.onmousedown=function(e){e.stopPropagation();};
         noteEl.onblur=function(){var v=noteEl.textContent.trim();if(v!==a.note){snapshot();a.note=v;save();render();}};
         noteEl.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();noteEl.blur();}e.stopPropagation();};
-        blk.appendChild(noteEl);
+        wrap1.appendChild(noteEl);
+        blk.appendChild(wrap1);
         var eb=document.createElement('button'); eb.className='bedit edit-only'; eb.textContent='✏️';
         eb.onclick=function(e){e.stopPropagation();openAM(a.workerId,a.start,a.end,a.projectId,a.id);};
         blk.appendChild(eb);
@@ -833,6 +933,7 @@ function render(){
         row.appendChild(c);
       }
       D.assignments.filter(function(a){return a.workerId===w.id;}).forEach(function(a){
+        if(!SHOW_AL&&a.isAl===true)return;
         if(a.absence){var proj={name:a.absenceReason||'העדרות',color:'#2C2C2C',status:''};}else{var proj=D.projects.find(function(p){return p.id===a.projectId;});if(!proj)return;if(FP_SET&&FP_SET.size>0&&!FP_SET.has(a.projectId))return;
         if(FPM&&proj&&proj.pm!==FPM)return;}
         var x=dateX(a.end); // RTL: end is leftmost (smaller x)
@@ -844,8 +945,10 @@ function render(){
         blk.style.left=x+'px'; blk.style.width=width+'px';
         blk.style.height=(RH-10)+'px';
         var t=document.createElement('span'); t.className='btitle';
-        t.textContent=a.absence?(a.absenceReason||'העדרות'):proj.name;
-        t.title=a.absence?(a.absenceReason||'העדרות'):proj.name;
+        var _pp2=proj.parentId?(D.parentProjects||[]).find(function(x){return x.id===proj.parentId;}):null;
+        var _lbl2=a.absence?(a.absenceReason||'העדרות'):(_pp2?_pp2.name+' - '+proj.name:proj.name);
+        t.textContent=_lbl2;
+        t.title=_lbl2;
         // style based on status or absence
         if(a.absence){
           blk.style.background='#2C2C2C';
@@ -855,7 +958,7 @@ function render(){
         } else {
           var dispColor=getDisplayColor(proj);
           blk.style.background=dispColor;
-          if(proj.status==='שיבוץ על'){
+          if(proj.status==='שיבוץ על'||a.isAl===true){
             blk.style.backgroundImage='repeating-linear-gradient(135deg, rgba(255,255,255,.0) 0px, rgba(255,255,255,.0) 6px, rgba(255,255,255,.3) 6px, rgba(255,255,255,.3) 8px)';
             blk.style.border='1.5px solid '+proj.color+'aa';
             blk.style.boxSizing='border-box';
@@ -865,7 +968,8 @@ function render(){
             blk.style.border='none';
           }
         }
-        blk.appendChild(t);
+        var wrap2=document.createElement('div'); wrap2.className='blk-content';
+        wrap2.appendChild(t);
 
         // Editable note directly on block
         var noteEl=document.createElement('div');
@@ -886,7 +990,8 @@ function render(){
           if(e.key==='Enter'){e.preventDefault();noteEl.blur();}
           e.stopPropagation();
         };
-        blk.appendChild(noteEl);
+        wrap2.appendChild(noteEl);
+        blk.appendChild(wrap2);
         // Edit button
         var eb=document.createElement('button'); eb.className='bedit edit-only'; eb.textContent='✏️';
         eb.onclick=function(e){e.stopPropagation();openAM(a.workerId,a.start,a.end,a.projectId,a.id);};
@@ -968,75 +1073,83 @@ function render(){
   });
 
   // milestone lines and flags
+  // SPH=34 (sprint), MH=36 (month), WH=28 (week)
+  // flag: inside mrow → top=SPH+4; line: from SPH+MH down through all rows
   var _msXCount={};
+  var tlhdr=document.getElementById('tl-hdr'); // sticky container
   D.milestones.forEach(function(ms){
-    var proj=D.projects.find(function(p){return p.id===ms.projectId;});
-    if(!proj)return;
-    // filter by project if active
-    if(FP!=='all'&&ms.projectId!==FP)return;
-    var x=dateX(ms.date); // left edge = end of week in RTL
+    var proj=null;
+    var msIsParent=ms.projectId&&ms.projectId.indexOf('pp:')===0;
+    if(msIsParent){
+      var ppId=ms.projectId.slice(3);
+      var pp=D.parentProjects&&D.parentProjects.find(function(x){return x.id===ppId;});
+      if(!pp)return;
+      proj={id:ms.projectId,name:pp.name,color:pp.color,parentId:null};
+    } else {
+      proj=D.projects.find(function(p){return p.id===ms.projectId;});
+      if(!proj)return;
+    }
+    // filter
+    var _fpActive=(FP_SET&&FP_SET.size>0)?FP_SET:(FP!=='all'?new Set([FP]):null);
+    if(_fpActive&&_fpActive.size>0&&!_fpActive.has(ms.projectId))return;
+    var x=dateX(ms.date);
     if(x<0||x>TW)return;
-    // vertical line
-    var line=document.createElement('div');
-    line.className='milestone-line';
-    line.style.left=x+'px';
-    line.style.height=totalH+'px';
-    line.style.borderColor=proj.color;
-    line.style.color=proj.color;
-    body.appendChild(line);
-    // dot marker at top - stack multiple milestones at same x
-    if(!_msXCount)_msXCount={};
+    var col=proj.color;
+    // calculate positions first
     var xKey=Math.round(x);
     _msXCount[xKey]=(_msXCount[xKey]||0);
-    var dotTop=2+_msXCount[xKey]*16; // stack 16px apart
+    var stackOffset=_msXCount[xKey]*22;
     _msXCount[xKey]++;
+    var flagH=22;
+    var flagTop=SPH+MH+Math.round((WH-flagH)/2)+stackOffset; // centered in wkrow
+    var lineStart=flagTop+flagH; // line starts right below flag
+    // vertical dashed line — from below flag through entire body
+    var line=document.createElement('div');
+    line.className='milestone-line';
+    line.style.cssText='left:'+x+'px;top:'+lineStart+'px;height:'+(totalH+200)+'px;border-color:'+col+';';
+    body.appendChild(line);
+    // flag label — in tl-hdr (sticky)
     var flag=document.createElement('div');
-    flag.className='milestone-dot';
-    flag.style.left=x+'px';
-    flag.style.top=dotTop+'px';
-    flag.style.background=proj.color;
+    flag.className='milestone-flag';
+    flag.style.cssText='left:'+(x+1)+'px;top:'+flagTop+'px;background:'+col+';--ms-color:'+col+';';
+    flag.textContent='◆ '+ms.name;
     flag.title=ms.name+' | '+ms.date;
-    // tooltip on hover
+    // tooltip
     flag.addEventListener('mouseenter',function(e){
       var tt=document.getElementById('ms-tooltip');
-      tt.textContent=ms.name+' · '+ms.date;
-      tt.style.background=proj.color;
+      tt.textContent=ms.name+' · '+ms.date+' | '+proj.name;
+      tt.style.background=col;
       tt.style.display='block';
       tt.style.left=(e.clientX+10)+'px';
-      tt.style.top=(e.clientY-28)+'px';
+      tt.style.top=(e.clientY-32)+'px';
     });
     flag.addEventListener('mousemove',function(e){
       var tt=document.getElementById('ms-tooltip');
       tt.style.left=(e.clientX+10)+'px';
-      tt.style.top=(e.clientY-28)+'px';
+      tt.style.top=(e.clientY-32)+'px';
     });
     flag.addEventListener('mouseleave',function(){
       document.getElementById('ms-tooltip').style.display='none';
     });
-    (function(msRef){
-      flag.addEventListener('contextmenu',function(e){
-        e.preventDefault();
-        if(!EDIT_MODE&&typeof EDIT_MODE!=='undefined')return;
-        if(confirm('למחוק אבן דרך "'+msRef.name+'"?')){
-          snapshot();D.milestones=D.milestones.filter(function(x){return x.id!==msRef.id;});
-          save();render();
-        }
-      });
-      flag.addEventListener('click',function(e){
+    (function(msRef){      flag.addEventListener('click',function(e){
         e.stopPropagation();
-        openMsM(msRef.id);
+        if(EDIT_MODE||typeof EDIT_MODE==='undefined'){_msCurId=msRef.id;openMsM(msRef.id);}
       });
-      // delete on keyboard Delete key
+      flag.addEventListener('contextmenu',function(e){
+        e.preventDefault();e.stopPropagation();
+        if(!EDIT_MODE&&typeof EDIT_MODE!=='undefined')return;
+        _msCurId=msRef.id;
+        openCtx('msctx',e);
+      });
       flag.setAttribute('tabindex','0');
       flag.addEventListener('keydown',function(e){
-        if(e.key==='Delete'||e.key==='Backspace'){
-          if(!EDIT_MODE&&typeof EDIT_MODE!=='undefined')return;
+        if((e.key==='Delete'||e.key==='Backspace')&&(EDIT_MODE||typeof EDIT_MODE==='undefined')){
           snapshot();D.milestones=D.milestones.filter(function(x){return x.id!==msRef.id;});
           save();render();
         }
       });
     })(ms);
-    body.appendChild(flag);
+    tlhdr.appendChild(flag);
   });
 
   // today line
@@ -1124,9 +1237,79 @@ function renderSidebar(gs){
 
 // ── project panel ─────────────────────────────────────────────────────────────
 var _dragProjOrder=null, _dragProjOrderEl=null;
+// track collapsed state of parent projects
+var _collapsedParents={};
+
+function toggleProjectFilter(pid){
+  if(!FP_SET)FP_SET=new Set();
+  if(FP_SET.has(pid))FP_SET.delete(pid); else FP_SET.add(pid);
+  FP='all'; // clear old single filter
+  render();
+}
+function toggleParentFilter(ppid){
+  if(!FP_SET)FP_SET=new Set();
+  var children=D.projects.filter(function(p){return p.parentId===ppid;}).map(function(p){return p.id;});
+  var allOn=children.length>0&&children.every(function(id){return FP_SET.has(id);});
+  if(allOn){children.forEach(function(id){FP_SET.delete(id);});}
+  else{children.forEach(function(id){FP_SET.add(id);});}
+  FP='all';
+  render();
+}
+function parentFilterState(ppid){
+  if(!FP_SET||FP_SET.size===0)return 'none';
+  var children=D.projects.filter(function(p){return p.parentId===ppid;}).map(function(p){return p.id;});
+  if(children.length===0)return 'none';
+  var onCount=children.filter(function(id){return FP_SET.has(id);}).length;
+  if(onCount===0)return 'none';
+  if(onCount===children.length)return 'full';
+  return 'partial';
+}
+
+function buildProjItem(p, isChild){
+  var item=document.createElement('div'); item.className='pitem'+(isChild?' child':'');
+  item.dataset.pid=p.id;
+  // filter checkbox
+  var chk=document.createElement('div');
+  var isActive=FP_SET&&FP_SET.has(p.id);
+  chk.className='pfilter-check'+(isActive?' active':'');
+  chk.textContent=isActive?'✓':'';
+  chk.title='סנן לפי פרויקט זה';
+  chk.onclick=function(e){e.stopPropagation();toggleProjectFilter(p.id);};
+  var grip=document.createElement('div'); grip.style.cssText='cursor:grab;color:var(--fnt);font-size:12px;padding:0 4px;flex-shrink:0;opacity:.5;';grip.textContent='⠿';
+  var sq=document.createElement('div'); sq.className='psq'; sq.style.background=getDisplayColor(p);
+  var nm=document.createElement('div'); nm.className='pname'; nm.title=(p.code?'['+p.code+'] ':'')+p.name;
+  nm.textContent=p.name;
+  if(p.status&&p.status!=='בביצוע'){
+    var stag=document.createElement('span');
+    stag.style.cssText='font-size:9px;background:rgba(0,0,0,.12);border-radius:3px;padding:1px 4px;margin-right:4px;white-space:nowrap;';
+    stag.textContent=p.status;
+    nm.appendChild(stag);
+  }
+  var del=document.createElement('button'); del.className='pdel edit-only'; del.textContent='✕';
+  del.onclick=function(e){e.stopPropagation();if(confirm('למחוק?')){snapshot();D.projects=D.projects.filter(function(x){return x.id!==p.id;});D.assignments=D.assignments.filter(function(a){return a.projectId!==p.id;});snapshot();save();render();}};
+  var edt=document.createElement('button'); edt.className='pdel edit-only'; edt.textContent='✏️'; edt.style.opacity='0';
+  edt.onclick=function(e){e.stopPropagation();openEditProject(p.id);};
+  item.addEventListener('mouseenter',function(){edt.style.opacity='1';del.style.opacity='1';grip.style.opacity='1';});
+  item.addEventListener('mouseleave',function(){edt.style.opacity='0';del.style.opacity='0';grip.style.opacity='.5';});
+  item.appendChild(chk);item.appendChild(grip);item.appendChild(sq);item.appendChild(nm);item.appendChild(edt);item.appendChild(del);
+  grip.addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault();startProjReorder(e,p.id,item);});
+  (function(proj){
+    item.addEventListener('mousedown',function(e){
+      if(e.target===del||e.target===edt||e.target===grip)return;
+      if(!EDIT_MODE)return; // במצב צפייה — לא גוררים, מאפשרים click
+      e.preventDefault();startProjDrag(e,proj,item);
+    });
+    item.addEventListener('click',function(e){
+      if(e.target===del||e.target===edt||e.target===grip)return;
+      if(!EDIT_MODE){FP=FP===proj.id?'all':proj.id;render();return;}
+      FP=proj.id;render();
+    });
+  })(p);
+  return item;
+}
+
 function renderProjPanel(){
   var el=document.getElementById('plist'); el.innerHTML='';
-  // Update PM filter options
   var pmSel=document.getElementById('pm-filter');
   if(pmSel){
     var pms=[...new Set(D.projects.map(function(p){return p.pm||'';}).filter(Boolean))].sort();
@@ -1134,48 +1317,51 @@ function renderProjPanel(){
     pmSel.innerHTML='<option value="">כל מנהלי הפרויקטים</option>';
     pms.forEach(function(pm){pmSel.innerHTML+='<option value="'+pm+'"'+(pm===curPM?' selected':'')+'>'+pm+'</option>';});
   }
-  D.projects.forEach(function(p){
-    var item=document.createElement('div'); item.className='pitem';
-    item.dataset.pid=p.id;
-    // drag handle
-    var grip=document.createElement('div'); grip.style.cssText='cursor:grab;color:var(--fnt);font-size:12px;padding:0 4px;flex-shrink:0;opacity:.5;';grip.textContent='⠿';
-    var sq=document.createElement('div'); sq.className='psq'; sq.style.background=getDisplayColor(p);
-    var nm=document.createElement('div'); nm.className='pname'; nm.title=(p.code?'['+p.code+'] ':'')+p.name;
-    nm.textContent=p.name;
 
-    if(p.status&&p.status!=='בביצוע'){
-      var stag=document.createElement('span');
-      stag.style.cssText='font-size:9px;background:rgba(0,0,0,.12);border-radius:3px;padding:1px 4px;margin-right:4px;white-space:nowrap;';
-      stag.textContent=p.status;
-      nm.appendChild(stag);
-    }
-    var del=document.createElement('button'); del.className='pdel edit-only'; del.textContent='✕';
-    del.onclick=function(e){e.stopPropagation();if(confirm('למחוק?')){snapshot();D.projects=D.projects.filter(function(x){return x.id!==p.id;});D.assignments=D.assignments.filter(function(a){return a.projectId!==p.id;});snapshot();save();render();}};
-    var edt=document.createElement('button'); edt.className='pdel edit-only'; edt.textContent='✏️'; edt.style.opacity='0';
-    edt.onclick=function(e){e.stopPropagation();openEditProject(p.id);};
-    item.addEventListener('mouseenter',function(){edt.style.opacity='1';del.style.opacity='1';grip.style.opacity='1';});
-    item.addEventListener('mouseleave',function(){edt.style.opacity='0';del.style.opacity='0';grip.style.opacity='.5';});
-    item.appendChild(grip);item.appendChild(sq);item.appendChild(nm);item.appendChild(edt);item.appendChild(del);
-    // grip drag = reorder
-    grip.addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault();startProjReorder(e,p.id,item);});
-    // click = toggle filter (only if not dragging)
-    (function(proj){
-      var dragging=false;
-      item.addEventListener('mousedown',function(e){
-        if(e.target===del||e.target===edt||e.target===grip)return;
-        dragging=false;
-        e.preventDefault();
-        startProjDrag(e,proj,item);
-      });
-      item.addEventListener('click',function(e){
-        if(e.target===del||e.target===edt||e.target===grip)return;
-        if(dragging)return;
-        if(!EDIT_MODE){FP=FP===proj.id?'all':proj.id;render();return;}
-        FP=proj.id;
-        render();
-      });
-    })(p);
-    el.appendChild(item);
+  // render parent projects (with children), then standalone projects
+  if(!D.parentProjects)D.parentProjects=[];
+  D.parentProjects.forEach(function(pp){
+    var isOpen=!_collapsedParents[pp.id];
+    // parent row
+    var row=document.createElement('div'); row.className='pparent';
+    var stripe=document.createElement('div'); stripe.className='pparent-stripe'; stripe.style.background=pp.color;
+    var arrow=document.createElement('span'); arrow.className='pparent-arrow'+(isOpen?' open':''); arrow.textContent='◀';
+    var pnm=document.createElement('div'); pnm.className='pparent-name'; pnm.textContent=pp.name;
+    var ppDel=document.createElement('button'); ppDel.className='pdel edit-only'; ppDel.textContent='✕';
+    ppDel.onclick=function(e){
+      e.stopPropagation();
+      if(confirm('למחוק פרויקט אב? הפרויקטים הבנים יישארו ללא אב.')){
+        snapshot();
+        D.projects.forEach(function(p){if(p.parentId===pp.id)delete p.parentId;});
+        D.parentProjects=D.parentProjects.filter(function(x){return x.id!==pp.id;});
+        save();render();
+      }
+    };
+    var ppEdt=document.createElement('button'); ppEdt.className='pdel edit-only'; ppEdt.textContent='✏️'; ppEdt.style.opacity='0';
+    ppEdt.onclick=function(e){e.stopPropagation();openEditParentProject(pp.id);};
+    row.addEventListener('mouseenter',function(){ppDel.style.opacity='1';ppEdt.style.opacity='1';});
+    row.addEventListener('mouseleave',function(){ppDel.style.opacity='0';ppEdt.style.opacity='0';});
+    // parent filter checkbox
+    var ppChk=document.createElement('div');
+    var ppState=parentFilterState(pp.id);
+    ppChk.className='pfilter-check'+(ppState==='full'?' active':ppState==='partial'?' partial':'');
+    ppChk.textContent=ppState==='full'?'✓':ppState==='partial'?'−':'';
+    ppChk.title='סנן לפי כל הפרויקטים תחת '+pp.name;
+    (function(ppid){ppChk.onclick=function(e){e.stopPropagation();toggleParentFilter(ppid);};})(pp.id);
+    row.appendChild(ppChk);row.appendChild(stripe);row.appendChild(arrow);row.appendChild(pnm);row.appendChild(ppEdt);row.appendChild(ppDel);
+    row.onclick=function(){_collapsedParents[pp.id]=isOpen;renderProjPanel();};
+    el.appendChild(row);
+    // children container
+    var kids=document.createElement('div'); kids.className='pchildren';
+    kids.style.display=isOpen?'block':'none';
+    var children=D.projects.filter(function(p){return p.parentId===pp.id;});
+    children.forEach(function(p){kids.appendChild(buildProjItem(p,true));});
+    el.appendChild(kids);
+  });
+
+  // standalone projects (no parent)
+  D.projects.filter(function(p){return !p.parentId;}).forEach(function(p){
+    el.appendChild(buildProjItem(p,false));
   });
 }
 var _reorderPid=null,_reorderY=0,_reorderEl=null;
@@ -1231,22 +1417,38 @@ function mkLbl(txt){var s=document.createElement('span');s.className='flbl';s.te
 function mkSep(){var s=document.createElement('div');s.style.cssText='width:1px;height:16px;background:var(--brd);margin:0 6px;flex-shrink:0;align-self:center;';return s;}
 function renderFilter(){
   var bar=document.getElementById('fbar'); bar.innerHTML='';
-  // project filter chip - show first
-  if(FP!=='all'){
-    var projF=D.projects.find(function(p){return p.id===FP;});
-    if(projF){
-      bar.appendChild(mkLbl('סינון:'));
-      var allP=document.createElement('div');
-      allP.className='chip on'; allP.style.background='#555'; allP.style.borderColor='transparent'; allP.style.color='#fff';
-      allP.textContent='הכל';
-      allP.onclick=function(){FP='all';render();};
-      bar.appendChild(allP);
-      var pchip=document.createElement('div');
-      pchip.className='chip on'; pchip.style.background=projF.color; pchip.style.borderColor='transparent'; pchip.style.color='#fff';
-      pchip.textContent=projF.name;
-      bar.appendChild(pchip);
-      bar.appendChild(mkSep());
+  // project filter chips
+  var _anyFilter=(FP_SET&&FP_SET.size>0)||(FP!=='all');
+  if(_anyFilter){
+    bar.appendChild(mkLbl('סינון:'));
+    var allP=document.createElement('div');
+    allP.className='chip on'; allP.style.background='#555'; allP.style.borderColor='transparent'; allP.style.color='#fff';
+    allP.textContent='✕ הכל';
+    allP.onclick=function(){FP='all';FP_SET=new Set();render();};
+    bar.appendChild(allP);
+    // show chips for FP_SET
+    if(FP_SET&&FP_SET.size>0){
+      FP_SET.forEach(function(pid){
+        var projF=D.projects.find(function(p){return p.id===pid;});
+        if(!projF)return;
+        var pchip=document.createElement('div');
+        pchip.className='chip on';
+        pchip.style.cssText='background:'+projF.color+';border-color:transparent;color:#fff;';
+        pchip.textContent=projF.name+' ✕';
+        (function(id){pchip.onclick=function(){FP_SET.delete(id);if(FP_SET.size===0)FP='all';render();};})(pid);
+        bar.appendChild(pchip);
+      });
+    } else if(FP!=='all'){
+      var projF=D.projects.find(function(p){return p.id===FP;});
+      if(projF){
+        var pchip=document.createElement('div');
+        pchip.className='chip on'; pchip.style.background=projF.color; pchip.style.borderColor='transparent'; pchip.style.color='#fff';
+        pchip.textContent=projF.name+' ✕';
+        pchip.onclick=function(){FP='all';render();};
+        bar.appendChild(pchip);
+      }
     }
+    bar.appendChild(mkSep());
   }
   // Range chips
   bar.appendChild(mkLbl('טווח:'));
@@ -1371,13 +1573,41 @@ function makeResize(handle,blk,a){
   handle.addEventListener('mousedown',function(e){if(!EDIT_MODE)return;e.stopPropagation();e.preventDefault();sx=e.clientX;sw=parseFloat(blk.style.width);document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});
 }
 
+function cEditMs(){var ms=D.milestones.find(function(x){return x.id===_msCurId;});if(ms)openMsM(ms.id);}
+function cDelMs(){
+  if(!_msCurId)return;
+  snapshot();D.milestones=D.milestones.filter(function(x){return x.id!==_msCurId;});
+  _msCurId=null;save();render();
+}
 // ── context menus ─────────────────────────────────────────────────────────────
 function openCtx(id,e){
-  ['bctx','wctx','sctx'].forEach(function(x){document.getElementById(x).classList.remove('open');});
+  ['bctx','wctx','sctx','msctx'].forEach(function(x){document.getElementById(x).classList.remove('open');});
+  if(id==='bctx'){
+    var a=D.assignments.find(function(x){return x.id===_blkId;});
+    var alBtn=document.getElementById('bctx-al');
+    if(alBtn&&a)alBtn.textContent=a.isAl===true?'✅ הסר שיבוץ על':'⬜ סמן שיבוץ על';
+  }
+
   var m=document.getElementById(id);m.style.top=e.clientY+'px';m.style.left=e.clientX+'px';m.classList.add('open');
   setTimeout(function(){document.addEventListener('click',function(){m.classList.remove('open');},{once:true});},10);
 }
 function cEditBlk(){var a=D.assignments.find(function(x){return x.id===_blkId;});if(a)openAM(a.workerId,a.start,a.end,a.projectId,a.id);}
+function cToggleAl(){
+  var a=D.assignments.find(function(x){return x.id===_blkId;});
+  if(!a)return;
+  snapshot();
+  a.isAl=a.isAl===true?false:true;
+  save();render();
+}
+function toggleShowAl(){
+  SHOW_AL=!SHOW_AL;
+  // עדכן טקסט בתפריט
+  var mi=document.getElementById('toggle-al-mi');
+  if(mi)mi.textContent=SHOW_AL?'🙈 הסתר שיבוץ על':'👁 הצג שיבוץ על';
+  document.getElementById('more-menu').style.display='none';
+  render();
+}
+
 function cDelBlk(){
   snapshot();D.assignments=D.assignments.filter(function(a){return a.id!==_blkId;});snapshot();save();render();}
 function cEditWrk(){
@@ -1444,7 +1674,154 @@ function saveWorker(){
   else D.workers.push({id:'w'+Date.now(),name:name,team:team,group:group});
   save();cm('wmodal');render();
 }
-function openPM(){document.getElementById('pn').value='';renderColors();om('pmodal');setTimeout(function(){document.getElementById('pn').focus();},200);}
+// ── parent project helpers ────────────────────────────────────────────────────
+var selPPCol=0;
+var _editPPId=null;
+
+function hexToHsl(hex){
+  var r=parseInt(hex.slice(1,3),16)/255,g=parseInt(hex.slice(3,5),16)/255,b=parseInt(hex.slice(5,7),16)/255;
+  var max=Math.max(r,g,b),min=Math.min(r,g,b),h,s,l=(max+min)/2;
+  if(max===min){h=s=0;}else{var d=max-min;s=l>0.5?d/(2-max-min):d/(max+min);
+    switch(max){case r:h=(g-b)/d+(g<b?6:0);break;case g:h=(b-r)/d+2;break;case b:h=(r-g)/d+4;break;}h/=6;}
+  return [h*360,s*100,l*100];
+}
+function hslToHex(h,s,l){
+  h/=360;s/=100;l/=100;
+  var r,g,b;
+  if(s===0){r=g=b=l;}else{
+    function hue2rgb(p,q,t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;}
+    var q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q;
+    r=hue2rgb(p,q,h+1/3);g=hue2rgb(p,q,h);b=hue2rgb(p,q,h-1/3);
+  }
+  return '#'+[r,g,b].map(function(x){return Math.round(x*255).toString(16).padStart(2,'0');}).join('');
+}
+function parentShades(baseColor){
+  // Generate ~10 actual shades: same hue, vary saturation+lightness
+  var hsl=hexToHsl(baseColor);
+  var h=hsl[0];
+  var shades=[];
+  // dark to light: keep saturation high, vary lightness 20%→75%
+  var lightnesses=[20,28,35,42,50,57,63,68,73,78];
+  var saturations=[85,80,75,70,65,70,65,60,55,50];
+  lightnesses.forEach(function(l,i){
+    shades.push(hslToHex(h, saturations[i], l));
+  });
+  return shades;
+}
+
+function renderParentColors(){
+  var used=D.parentProjects.map(function(pp){return pp.color;});
+  document.getElementById('ppcrow').innerHTML=COLS.map(function(c,i){
+    var isUsed=used.indexOf(c)>=0&&(!_editPPId||(D.parentProjects.find(function(x){return x.id===_editPPId;})||{}).color!==c);
+    var isSel=i===selPPCol;
+    return '<div class="copt'+(isSel?' on':'')+(isUsed&&!isSel?' used':'')
+      +'" style="background:'+c+';'+(isUsed&&!isSel?'opacity:.25;cursor:not-allowed;':'')
+      +'" onclick="'+(isUsed&&!isSel?'':('selPPCol='+i+';renderParentColors()'))+'" ></div>';
+  }).join('');
+}
+
+function openParentPM(){
+  _editPPId=null;
+  document.getElementById('pp-t').textContent='הוסף פרויקט אב';
+  document.getElementById('ppn').value='';
+  selPPCol=0;renderParentColors();
+  om('ppmodal');setTimeout(function(){document.getElementById('ppn').focus();},200);
+}
+
+function openEditParentProject(ppid){
+  var pp=D.parentProjects.find(function(x){return x.id===ppid;});if(!pp)return;
+  _editPPId=ppid;
+  document.getElementById('pp-t').textContent='ערוך פרויקט אב';
+  document.getElementById('ppn').value=pp.name;
+  selPPCol=COLS.indexOf(pp.color)||0;
+  renderParentColors();
+  om('ppmodal');setTimeout(function(){document.getElementById('ppn').focus();},200);
+}
+
+function saveParentProject(){
+  var name=document.getElementById('ppn').value.trim();if(!name)return;
+  var color=COLS[selPPCol];
+  snapshot();
+  if(_editPPId){
+    var pp=D.parentProjects.find(function(x){return x.id===_editPPId;});
+    if(pp){pp.name=name;pp.color=color;}
+  } else {
+    D.parentProjects.push({id:'pp'+Date.now(),name:name,color:color});
+  }
+  save();cm('ppmodal');render();
+}
+
+function populateParentSel(selId, currentParentId){
+  if(!D.parentProjects)D.parentProjects=[];
+  var sel=document.getElementById(selId);
+  sel.innerHTML='<option value="">ללא</option>';
+  D.parentProjects.forEach(function(pp){
+    sel.innerHTML+='<option value="'+pp.id+'"'+(pp.id===currentParentId?' selected':'')+'>'+pp.name+'</option>';
+  });
+  sel.value=currentParentId||'';
+}
+
+function renderChildColors(parentId, selectedColor){
+  if(!D.parentProjects)D.parentProjects=[];
+  var pp=D.parentProjects.find(function(x){return x.id===parentId;});
+  var palette=pp?parentShades(pp.color):COLS;
+  var used=usedColors().filter(function(c){return c!==selectedColor;});
+  var el=document.getElementById('pcrow');el.innerHTML='';
+  palette.forEach(function(c,i){
+    var isUsed=used.indexOf(c)>=0;
+    var isSel=(c===selectedColor)||(i===Math.floor(palette.length/2)&&!selectedColor&&pp);
+    var div=document.createElement('div');
+    div.className='copt'+(isSel?' on':'')+(isUsed&&!isSel?' used':'');
+    div.style.cssText='background:'+c+';width:16px;height:16px;border-radius:3px;cursor:pointer;'+(isUsed&&!isSel?'opacity:.35;cursor:not-allowed;':'');
+    if(!isUsed||isSel)(function(col){div.onclick=function(){
+      el.dataset.chosen=col;
+      renderChildColors(parentId,col);
+    };})(c);
+    el.appendChild(div);
+  });
+  el.dataset.chosen=selectedColor||(palette[Math.floor(palette.length/2)]||'');
+}
+
+function getChosenChildColor(){
+  var el=document.getElementById('pcrow');
+  return el&&el.dataset.chosen?el.dataset.chosen:COLS[selCol];
+}
+
+function renderChildColorsEp(parentId, selectedColor){
+  if(!D.parentProjects)D.parentProjects=[];
+  var pp=D.parentProjects.find(function(x){return x.id===parentId;});
+  var palette=pp?parentShades(pp.color):COLS;
+  var currentProjColor=_editProjId?((D.projects.find(function(p){return p.id===_editProjId;})||{}).color||''):'';
+  var used=usedColors().filter(function(c){return c!==currentProjColor;});
+  var el=document.getElementById('ep-colors');el.innerHTML='';
+  palette.forEach(function(c,i){
+    var isUsed=used.indexOf(c)>=0&&c!==currentProjColor;
+    var isSel=(c===selectedColor);
+    var div=document.createElement('div');
+    div.className='copt'+(isSel?' on':'')+(isUsed&&!isSel?' used':'');
+    div.style.cssText='background:'+c+';width:16px;height:16px;border-radius:3px;cursor:pointer;'+(isUsed&&!isSel?'opacity:.35;cursor:not-allowed;':'');
+    if(!isUsed||isSel)(function(col){div.onclick=function(){
+      el.dataset.chosen=col;
+      renderChildColorsEp(parentId,col);
+    };})(c);
+    el.appendChild(div);
+  });
+  el.dataset.chosen=selectedColor||currentProjColor||(palette[Math.floor(palette.length/2)]||'');
+}
+
+function getChosenChildColorEp(){
+  var el=document.getElementById('ep-colors');
+  return el&&el.dataset.chosen?el.dataset.chosen:COLS[selEpCol];
+}
+function openPM(){
+  document.getElementById('pn').value='';
+  populateParentSel('p-parent','');
+  selCol=0;renderColors();
+  document.getElementById('p-parent').onchange=function(){
+    renderChildColors(this.value,'');
+  };
+  om('pmodal');setTimeout(function(){document.getElementById('pn').focus();},200);
+}
 var _editProjId=null;
 function openEditProject(pid){
   var p=D.projects.find(function(x){return x.id===pid;});if(!p)return;
@@ -1452,7 +1829,9 @@ function openEditProject(pid){
   document.getElementById('ep-name').value=p.name;
   var ci=COLS.indexOf(p.color);
   selEpCol=ci>=0?ci:0;
-  renderEpColors();
+  populateParentSel('ep-parent',p.parentId||'');
+  document.getElementById('ep-parent').onchange=function(){renderChildColorsEp(this.value,p.color);};
+  renderChildColorsEp(p.parentId||'',p.color);
   document.getElementById('ep-status').value=p.status||'בביצוע';
   if(document.getElementById('ep-code'))document.getElementById('ep-code').value=p.code||'';
   if(document.getElementById('ep-pm'))document.getElementById('ep-pm').value=p.pm||'';
@@ -1481,6 +1860,8 @@ function saveEditProject(){
   p.code=document.getElementById('ep-code')?document.getElementById('ep-code').value.trim():'';
   p.classification=document.getElementById('ep-class')?document.getElementById('ep-class').value:'';
   p.pm=document.getElementById('ep-pm')?document.getElementById('ep-pm').value.trim():'';
+  var parentId=document.getElementById('ep-parent')?document.getElementById('ep-parent').value:'';
+  if(parentId){p.parentId=parentId;p.color=getChosenChildColorEp();}else{delete p.parentId;p.color=COLS[selEpCol];}
   save();cm('epmodal');render();
 }
 function usedColors(){return D.projects.map(function(p){return p.color;});}
@@ -1498,7 +1879,11 @@ function saveProject(){
   var code=document.getElementById('pcode')?document.getElementById('pcode').value.trim():'';
   var pclass=document.getElementById('pclass')?document.getElementById('pclass').value:'';
   var ppm=document.getElementById('ppm')?document.getElementById('ppm').value.trim():'';
-  D.projects.push({id:'p'+Date.now(),name:name,color:COLS[selCol],status:status,code:code,classification:pclass,pm:ppm});
+  var parentId=document.getElementById('p-parent')?document.getElementById('p-parent').value:'';
+  var chosenColor=parentId?getChosenChildColor():COLS[selCol];
+  var proj={id:'p'+Date.now(),name:name,color:chosenColor,status:status,code:code,classification:pclass,pm:ppm};
+  if(parentId)proj.parentId=parentId;
+  D.projects.push(proj);
   save();cm('pmodal');render();
 }
 function openSprM(){
@@ -1783,7 +2168,16 @@ function importSprints(event){
 var _clipboard=null, _hovWrkId=null, _hovWeekDate=null;
 document.addEventListener('keydown',function(e){
   // Escape - close modals
-  if(e.key==='Escape'){['wmodal','pmodal','sprmodal','amodal','rangemodal','epmodal','msmodal'].forEach(cm);return;}
+  if(e.key==='Escape'){['wmodal','pmodal','ppmodal','sprmodal','amodal','rangemodal','epmodal','msmodal'].forEach(cm);return;}
+  // Enter = שמירה במודל הפתוח (אלא אם בתוך textarea)
+  if(e.key==='Enter'&&!e.shiftKey){
+    var tag=document.activeElement.tagName;
+    if(tag==='TEXTAREA')return;
+    var saves={'wmodal':saveWorker,'pmodal':saveProject,'ppmodal':saveParentProject,'sprmodal':saveSprint,'amodal':saveAssign,'msmodal':saveMilestone,'epmodal':saveEditProject};
+    var openModal=Object.keys(saves).find(function(id){return document.getElementById(id)&&document.getElementById(id).classList.contains('open');});
+    if(openModal){e.preventDefault();saves[openModal]();}
+    return;
+  }
   // allow Ctrl+Z/Y even in view mode
   var isUndo=((e.key==='z'||e.key==='Z')&&(e.ctrlKey||e.metaKey));
   var isRedo=((e.key==='y'||e.key==='Y')&&(e.ctrlKey||e.metaKey))||((e.key==='z'||e.key==='Z')&&(e.ctrlKey||e.metaKey)&&e.shiftKey);
@@ -1963,10 +2357,23 @@ function openMsM(id){
   _msId=id;
   document.getElementById('ms-t').textContent=id?'ערוך אבן דרך':'הוסף אבן דרך';
   var ps=document.getElementById('msp');
-  ps.innerHTML=D.projects.map(function(p){return '<option value="'+p.id+'">'+p.n}).join('\r\n');
+  // רק פרויקטי אב או פרויקטים ללא אב
+  if(!D.parentProjects)D.parentProjects=[];
+  var parentIds=D.parentProjects.map(function(pp){return pp.id;});
+  var msProjects=D.projects.filter(function(p){return !p.parentId;});
+  var opts='<option value="">-- ללא פרויקט --</option>';
+  // פרויקטי אב ראשה
+  D.parentProjects.forEach(function(pp){
+    opts+='<option value="pp:'+pp.id+'">📁 '+pp.name+'</option>';
+  });
+  // פרויקטים ללא אב
+  msProjects.filter(function(p){return !p.parentId;}).forEach(function(p){
+    opts+='<option value="'+p.id+'">'+p.name+'</option>';
+  });
+  ps.innerHTML=opts;
   if(id){
     var ms=D.milestones.find(function(x){return x.id===id;});
-    if(ms){document.getElementById('msn').value=ms.name;document.getElementById('msd').value=ms.date;ps.value=ms.projectId;}
+    if(ms){document.getElementById('msn').value=ms.name;document.getElementById('msd').value=ms.date;ps.value=ms.projectId||'';}
   } else {
     document.getElementById('msn').value='';
     document.getElementById('msd').value=fd(TODAY);
@@ -1979,6 +2386,10 @@ function saveMilestone(){
   var date=document.getElementById('msd').value;
   var pid=document.getElementById('msp').value;
   if(!name||!date||!pid)return;
+  // pid can be 'pp:xxx' for parent project or regular project id
+  var isParent=pid.indexOf('pp:')=== 0;
+  var realId=isParent?pid.slice(3):pid;
+  pid=pid; // keep as-is for storage
   snapshot();
   if(_msId){var ms=D.milestones.find(function(x){return x.id===_msId;});if(ms){ms.name=name;ms.date=date;ms.projectId=pid;}}
   else D.milestones.push({id:'ms'+Date.now(),name:name,date:date,projectId:pid});
@@ -2134,8 +2545,17 @@ function openSummary(){
   });
 
   D.milestones.forEach(function(ms){
-    var proj=D.projects.find(function(p){return p.id===ms.projectId;});
-    if(!proj)return;
+    var proj=null;
+    var msIsParent=ms.projectId&&ms.projectId.indexOf('pp:')===0;
+    if(msIsParent){
+      var ppId=ms.projectId.slice(3);
+      var pp=D.parentProjects&&D.parentProjects.find(function(x){return x.id===ppId;});
+      if(!pp)return;
+      proj={id:ms.projectId,name:pp.name,color:pp.color,parentId:null};
+    } else {
+      proj=D.projects.find(function(p){return p.id===ms.projectId;});
+      if(!proj)return;
+    }
     var x=dateX(ms.date);if(x<0||x>TW)return;
     msOverlays+='<div style="position:absolute;top:0;left:'+x+'px;width:2px;height:100%;border-left:2px dashed '+proj.color+';opacity:.5;pointer-events:none;z-index:8;"></div>';
     var safeName=ms.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
