@@ -188,6 +188,26 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .ci.del{color:#E24B4A;}
 
 body:not(.edit-mode) .edit-only{display:none!important;}
+
+/* ── Work Plan Overlay Panel ── */
+.tp-panel{position:fixed;top:52px;left:0;width:280px;height:calc(100vh - 52px);background:var(--sur);border-right:1px solid var(--brd);z-index:180;display:flex;flex-direction:column;box-shadow:4px 0 20px rgba(0,0,0,.12);transform:translateX(-100%);transition:transform .25s cubic-bezier(.4,0,.2,1);}
+.tp-panel.open{transform:translateX(0);}
+.tp-hdr{height:48px;background:#1E3A5F;color:#fff;display:flex;align-items:center;padding:0 14px;gap:8px;font-size:13px;font-weight:700;flex-shrink:0;}
+.tp-body{flex:1;overflow-y:auto;padding:8px;}
+.tp-proj-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;cursor:pointer;border:1px solid var(--brd);margin-bottom:5px;background:var(--bg);}
+.tp-proj-item:hover{background:#eee;}
+.tp-proj-item.active{background:#EBF4FF;border-color:var(--acc);}
+.tp-check{width:16px;height:16px;border:1.5px solid var(--brd);border-radius:3px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;}
+.tp-proj-item.active .tp-check{background:var(--acc);border-color:var(--acc);}
+.tp-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.tp-name{font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tp-badge{font-size:10px;background:rgba(0,0,0,.08);border-radius:10px;padding:1px 6px;flex-shrink:0;color:var(--mut);}
+.tp-legend{padding:8px;font-size:11px;color:var(--mut);border-top:1px solid var(--brd);flex-shrink:0;}
+.tp-legend-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;}
+/* overlay task blocks rendered inside tlrow */
+.tp-blk{position:absolute;border-radius:4px;pointer-events:none;z-index:6;display:flex;align-items:center;padding:0 5px;overflow:hidden;}
+.tp-blk-title{font-size:10px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9;}
+.tp-blk.collision{outline:2px solid #E24B4A;outline-offset:-1px;box-shadow:0 0 6px rgba(226,75,74,.5);}
 </style>
   <!-- Firebase -->
   <script type="module">
@@ -341,7 +361,25 @@ body:not(.edit-mode) .edit-only{display:none!important;}
     </div>
   </div>
   <button class="btn" id="lock-btn" onclick="toggleEdit()" style="margin-right:auto;">🔒 עריכה</button>
+  <button class="btn" id="show-al-btn" onclick="toggleShowAl()" title="הצג/הסתר שיבוץ לא סופי">👁 הצג שיבוץ לא סופי</button>
+  <button class="btn edit-only" onclick="convertAllAlToRegular()" title="אשר כל שיבוצים לא סופיים" style="color:#1D9E75;">✅ אשר הכל</button>
+  <button class="btn" id="tp-toggle-btn" onclick="toggleTPPanel()" title="הצג/הסתר תוכניות עבודה">📋 תוכנית עבודה</button>
   <button class="btn edit-only" onclick="toggleNotesPanel()" id="notes-btn">📝 הערות</button>
+</div>
+
+<!-- Work Plan Overlay Panel -->
+<div class="tp-panel" id="tp-panel">
+  <div class="tp-hdr">
+    <span style="flex:1;">📋 תוכניות עבודה</span>
+    <button onclick="toggleTPPanel()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;padding:0 4px;">✕</button>
+  </div>
+  <div class="tp-body" id="tp-body">
+    <div style="font-size:11px;color:var(--mut);padding:6px 0 10px;">בחר תוכנית להצגת משימות על ציר הזמן</div>
+  </div>
+  <div class="tp-legend">
+    <div class="tp-legend-row"><div style="width:28px;height:10px;border-radius:3px;background:#378ADD;opacity:.4;"></div><span>משימת תוכנית</span></div>
+    <div class="tp-legend-row"><div style="width:28px;height:10px;border-radius:3px;background:#E24B4A;opacity:.4;outline:2px solid #E24B4A;"></div><span>התנגשות עם שיבוץ</span></div>
+  </div>
 </div>
 
 <div class="fbar" id="fbar"></div>
@@ -382,6 +420,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
     <div class="mhdr"><span class="mtitle" id="wm-t">הוסף עובד</span><button class="mx" onclick="cm('wmodal')">✕</button></div>
     <div class="mbody">
       <div class="fld"><label>שם</label><input id="wn" placeholder="שם מלא..."/></div>
+      <div class="fld"><label>מזהה עובד <span style="font-size:10px;color:var(--mut);font-weight:400;">(לקישור עם תוכנית עבודה)</span></label><input id="w-gid" placeholder="למשל: EMP001, alon.cohen..." style="font-family:monospace;"/></div>
       <div class="fld"><label>קבוצה</label>
         <select id="wg"><option value="">ללא קבוצה</option></select>
         <div style="display:flex;gap:5px;margin-top:5px;">
@@ -553,7 +592,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
   </div>
 </div>
 
-<div class="ctx" id="bctx"><div class="ci" onclick="cEditBlk()">✏️ ערוך</div><div class="ci" id="bctx-al" onclick="cToggleAl()">⬜ סמן שיבוץ על</div><div class="ci del" onclick="cDelBlk()">🗑️ מחק</div></div>
+<div class="ctx" id="bctx"><div class="ci" onclick="cEditBlk()" id="bctx-edit">✏️ ערוך</div><div class="ci" id="bctx-al" onclick="cToggleAl()">⬜ סמן שיבוץ לא סופי</div><div class="ci" id="bctx-al-multi" onclick="setMultiAl(true)" style="display:none">⬜ סמן הכל כלא סופי</div><div class="ci" id="bctx-al-multi-off" onclick="setMultiAl(false)" style="display:none">✅ הסר לא סופי מכולם</div><div class="ci del" id="bctx-del" onclick="cDelBlk()">🗑️ מחק</div><div class="ci del" id="bctx-del-multi" onclick="delMultiBlks()" style="display:none">🗑️ מחק נבחרים</div></div>
 <div class="ctx" id="msctx"><div class="ci" onclick="cEditMs()">✏️ ערוך אבן דרך</div><div class="ci del" onclick="cDelMs()">🗑️ מחק</div></div>
 <div class="ctx" id="wctx"><div class="ci" onclick="cEditWrk()">✏️ ערוך עובד</div><div class="ci del" onclick="cDelWrk()">🗑️ מחק עובד</div></div>
 <div class="ctx" id="sctx"><div class="ci" onclick="cEditSpr()">✏️ ערוך ספרינט</div><div class="ci del" onclick="cDelSpr()">🗑️ מחק ספרינט</div></div>
@@ -565,6 +604,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
     <div class="mbody">
       <div class="fld"><label>שם פרויקט</label><input id="ep-name" placeholder="שם..."/></div>
       <div class="fld"><label>קוד פרויקט</label><input id="ep-code" placeholder="P001..." style="font-family:monospace;"/></div>
+      <div class="fld"><label>מזהה לקישור תוכנית עבודה <span style="font-size:10px;color:var(--mut);font-weight:400;">(globalId)</span></label><input id="ep-gid" placeholder="PROJ001..." style="font-family:monospace;"/></div>
       <div class="fld"><label>מנהל פרויקט</label><input id="ep-pm" placeholder="שם מנהל..."/></div>
       <div class="fld"><label>סיווג</label>
         <select id="ep-class"><option value="">--</option><option value="לקוח">לקוח</option><option value="פנימי">פנימי</option></select>
@@ -608,7 +648,7 @@ var SHOW_AL=false;
 var _holCache=null; // cache of holiday week indices
 var _msVisible=[];
 var SHOW_MS_ROW=true; // הצג/הסתר שורת אבני דרך // false=הסתר שיבוץ על, true=הצג // project ids to filter (empty = show all)
-var _blkId=null,_wrkId=null,_sprId=null,_aId=null,_ewId=null,_esId=null,_selBlkId=null;
+var _blkId=null,_wrkId=null,_sprId=null,_aId=null,_ewId=null,_esId=null,_selBlkId=null,_selectedBlkIds=[];
 
 // ── dates ─────────────────────────────────────────────────────────────────────
 var TODAY=new Date(); TODAY.setHours(12,0,0,0);
@@ -810,7 +850,9 @@ function render(){
   var _savedScroll=_tlw?{l:_tlw.scrollLeft,t:_tlw.scrollTop}:null;
   var TW=totalW(), WW_=WW();
   var gs=getGroups();
+  _tpMismatches=[];
   var BL_ROW_H=(_activeBL!==null&&getBaselines()[_activeBL])?20:0;
+  var TP_ROW_H=(_tpActive&&_tpActive.size>0)?22:0;
   // חשב גובה שורת אבני דרך
   _msVisible=D.milestones.filter(function(ms){
     var _fpA=(FP_SET&&FP_SET.size>0)?FP_SET:(FP!=='all'?new Set([FP]):null);
@@ -823,7 +865,7 @@ function render(){
   var _msMaxStack=Object.keys(_msXMap).reduce(function(m,k){return Math.max(m,_msXMap[k]);},0)||0;
   var MS_BASE_H=28, MS_ITEM_H=22;
   var MS_ROW_H=SHOW_MS_ROW?Math.max(MS_BASE_H, MS_BASE_H+(_msMaxStack-1)*MS_ITEM_H):MS_BASE_H;
-  var totalH=0; gs.forEach(function(g){totalH+=GH+g.workers.length*(RH+BL_ROW_H);});
+  var totalH=0; gs.forEach(function(g){totalH+=GH+g.workers.length*(RH+BL_ROW_H+TP_ROW_H);});
   var totalHwithMs=(_msVisible.length>0?MS_ROW_H:0)+totalH;
 
   document.getElementById('tlinner').style.width=TW+'px';
@@ -1065,7 +1107,7 @@ function render(){
         var xStart=dateX(a.start);
         var width=Math.max(xStart-x+WW_, WW_*0.4);
         if(x+width<0||x>TW)return;
-        var blk=document.createElement('div'); blk.className='blk';
+        var blk=document.createElement('div'); blk.className='blk'; blk.dataset.aid=a.id;
         blk.style.left=x+'px'; blk.style.width=width+'px';
         blk.style.height=(GH-6)+'px'; blk.style.top='3px';
         var tg=document.createElement('span'); tg.className='btitle';
@@ -1089,10 +1131,23 @@ function render(){
         var rh=document.createElement('div'); rh.className='rhandle'; rh.style.right='0'; rh.style.left='auto'; blk.appendChild(rh);
         var lh=document.createElement('div'); lh.className='lhandle'; blk.appendChild(lh);
         blk.addEventListener('contextmenu',function(e){if(!EDIT_MODE)return;e.preventDefault();_blkId=a.id;openCtx('bctx',e);});
+        if(_selectedBlkIds.indexOf(a.id)!==-1) blk.classList.add('selected');
         blk.addEventListener('mouseenter',function(e){_selBlkId=a.id;showBlkTooltip(e,blkTooltipHtml(a,proj),proj.color);});
+        if(_selectedBlkIds.indexOf(a.id)!==-1) blk.classList.add('selected');
         blk.addEventListener('mousemove',function(e){posTooltip(e);});
         blk.addEventListener('mouseleave',function(){hideBlkTooltip();});
-        blk.addEventListener('click',function(e){e.stopPropagation();document.querySelectorAll('.blk.selected').forEach(function(b){b.classList.remove('selected');});blk.classList.add('selected');_selBlkId=a.id;});
+        blk.addEventListener('click',function(e){
+          e.stopPropagation();
+          _blkId=a.id; _selBlkId=a.id;
+          if(e.ctrlKey||e.metaKey){
+            e.preventDefault();
+            if(blk.classList.contains('selected')){blk.classList.remove('selected');_selectedBlkIds=_selectedBlkIds.filter(function(id){return id!==a.id;});}
+            else{blk.classList.add('selected');_selectedBlkIds.push(a.id);}
+          } else {
+            document.querySelectorAll('.blk.selected').forEach(function(b){b.classList.remove('selected');});
+            _selectedBlkIds=[a.id]; blk.classList.add('selected');
+          }
+        });
         makeDrag(blk,a); makeResize(rh,blk,a); makeResizeLeft(lh,blk,a);
         ghdr.appendChild(blk);
       });
@@ -1134,7 +1189,7 @@ function render(){
         var width=Math.max(xStart-x+WW_, WW_*0.4);
         // x is left edge of block
         if(x+width<0||x>TW)return;
-        var blk=document.createElement('div'); blk.className='blk';
+        var blk=document.createElement('div'); blk.className='blk'; blk.dataset.aid=a.id;
         blk.style.left=x+'px'; blk.style.width=width+'px';
         blk.style.height=(RH-10)+'px';
         var t=document.createElement('span'); t.className='btitle';
@@ -1193,15 +1248,22 @@ function render(){
         var rh=document.createElement('div'); rh.className='rhandle'; blk.appendChild(rh);
         var lh=document.createElement('div'); lh.className='lhandle'; blk.appendChild(lh);
         makeResizeLeft(lh,blk,a);
-        blk.addEventListener('contextmenu',function(e){if(!EDIT_MODE)return;e.preventDefault();_blkId=a.id;openCtx('bctx',e);});
+        blk.addEventListener('contextmenu',function(e){if(!EDIT_MODE)return;e.preventDefault();_blkId=a.id;if(!blk.classList.contains('selected')){document.querySelectorAll('.blk.selected').forEach(function(b){b.classList.remove('selected');});_selectedBlkIds=[a.id];blk.classList.add('selected');_selBlkId=a.id;}openCtx('bctx',e);});
         blk.addEventListener('mouseenter',function(e){_selBlkId=a.id;showBlkTooltip(e,blkTooltipHtml(a,proj),proj.color);});
+        if(_selectedBlkIds.indexOf(a.id)!==-1) blk.classList.add('selected');
         blk.addEventListener('mousemove',function(e){posTooltip(e);});
         blk.addEventListener('mouseleave',function(){hideBlkTooltip();});
         blk.addEventListener('click',function(e){
           e.stopPropagation();
-          document.querySelectorAll('.blk.selected').forEach(function(b){b.classList.remove('selected');});
-          blk.classList.add('selected');
-          _selBlkId=a.id;
+          _blkId=a.id; _selBlkId=a.id;
+          if(e.ctrlKey||e.metaKey){
+            e.preventDefault();
+            if(blk.classList.contains('selected')){blk.classList.remove('selected');_selectedBlkIds=_selectedBlkIds.filter(function(id){return id!==a.id;});}
+            else{blk.classList.add('selected');_selectedBlkIds.push(a.id);}
+          } else {
+            document.querySelectorAll('.blk.selected').forEach(function(b){b.classList.remove('selected');});
+            _selectedBlkIds=[a.id]; blk.classList.add('selected');
+          }
         });
         makeDrag(blk,a); makeResize(rh,blk,a);
         row.appendChild(blk);
@@ -1247,6 +1309,83 @@ function render(){
           body.appendChild(blRow);
         }
       }
+      // ── tp overlay row ── (נבנה בתוך render לסנכרון מלא)
+      if(_tpActive&&_tpActive.size>0){
+        // נקה ⚠️ ישנים
+        document.querySelectorAll('.tp-warn').forEach(function(el){el.remove();});
+        var tpRow=document.createElement('div');
+        tpRow.className='tp-row';
+        tpRow.style.cssText='position:relative;display:flex;direction:ltr;width:'+TW+'px;height:22px;border-bottom:1px solid #D8D6D0;background:#EFEDE8;overflow:hidden;flex-shrink:0;';
+        for(var _ti=TL_WEEKS-1;_ti>=0;_ti--){
+          var _tc=document.createElement('div');
+          _tc.style.cssText='width:'+WW_+'px;height:22px;border-right:1px solid #e0deda;flex-shrink:0;box-sizing:border-box;';
+          tpRow.appendChild(_tc);
+        }
+        if(w.globalId){
+          var _tpProjs=getTPProjects().filter(function(p){return _tpActive.has(p.key);});
+          _tpProjs.forEach(function(proj){
+            var projGlobalId;
+            try{var _raw=localStorage.getItem(proj.key);if(_raw){var _pm=JSON.parse(_raw);projGlobalId=_pm&&_pm.meta?_pm.meta.globalId:undefined;}}catch(e){}
+            var matchedGanttProj=projGlobalId?D.projects.find(function(gp){return gp.globalId&&gp.globalId===projGlobalId;}):null;
+            var planWorkers=proj.data.workers||[];
+            var planTasks=proj.data.tasks||[];
+            var planWorker=planWorkers.find(function(pw){return pw.globalId&&pw.globalId===w.globalId;});
+            if(!planWorker)return;
+            planTasks.filter(function(t){return +t.wid===+planWorker.id;}).forEach(function(task){
+              var _days=pd(task.end).getTime()-pd(task.start).getTime();
+              var _weeks=Math.max(1,Math.round((_days/86400000-6)/7)+1);
+              var _dr=Math.round(diffW(TL_START,pd(task.start))*WW_);
+              var _tw=_weeks*WW_-2;
+              var _tx=TW-_dr-_tw;
+              if(_tx+_tw<0||_tx>TW)return;
+
+              // בדוק התאמה: האם הפרויקט בשיבוץ שהעובד משובץ אליו בטווח זה תואם לפרויקט התוכנית?
+              var taskStart=pd(task.start).getTime();
+              var taskEnd=pd(task.end).getTime();
+              // מצא assignments של העובד שחופפים לטווח המשימה
+              var overlappingAssignments=D.assignments.filter(function(a){
+                return String(a.workerId)===String(w.id)&&
+                  pd(a.start).getTime()<=taskEnd&&pd(a.end).getTime()>=taskStart;
+              });
+              // בדוק התאמה — רק כשיש projGlobalId
+              var hasMismatch=false;
+              if(projGlobalId&&overlappingAssignments.length>0){
+                // יש mismatch אם אף assignment לא תואם לפרויקט התוכנית
+                hasMismatch=!overlappingAssignments.some(function(a){
+                  var ganttProj=D.projects.find(function(gp){return gp.id===a.projectId;});
+                  return ganttProj&&ganttProj.globalId&&ganttProj.globalId===projGlobalId;
+                });
+              }
+
+              var _col=matchedGanttProj?matchedGanttProj.color:(planWorker.color||'#378ADD');
+              var _tb=document.createElement('div');
+              _tb.style.cssText='position:absolute;top:3px;left:'+_tx+'px;width:'+_tw+'px;height:16px;border-radius:3px;background:'+_col+';opacity:.85;pointer-events:none;box-sizing:border-box;border:1.5px solid rgba(255,255,255,0.35);';
+              var _tl=document.createElement('div');
+              _tl.style.cssText='font-size:9px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 3px;line-height:16px;direction:rtl;';
+              _tl.textContent=task.name;
+              _tb.appendChild(_tl);
+              tpRow.appendChild(_tb);
+              // אסוף mismatch לטיפול ב-renderTPOverlays אחרי הDOM בנוי
+              if(hasMismatch){
+                overlappingAssignments.forEach(function(oa){
+                  var oaProj=D.projects.find(function(gp){return gp.id===oa.projectId;});
+                  var isMM=!oaProj||!oaProj.globalId||!projGlobalId||oaProj.globalId!==projGlobalId;
+                  if(!isMM) return;
+                  _tpMismatches.push({
+                    wid:w.id,
+                    aid:oa.id,
+                    taskName:task.name,
+                    projName:proj.name||'תוכנית עבודה',
+                    start:task.start,
+                    end:task.end
+                  });
+                });
+              }
+            });
+          });
+        }
+        body.appendChild(tpRow);
+      }
     });
   });
 
@@ -1279,6 +1418,9 @@ function render(){
   // חבר scroll sync מחדש
   wrap.onscroll=function(){sb.scrollTop=wrap.scrollTop;};
   sb.onscroll=function(){wrap.scrollTop=sb.scrollTop;};
+
+  // Work Plan Overlays
+  renderTPOverlays();
 }
 
 // inline note replaced by contenteditable on block
@@ -1351,7 +1493,8 @@ function renderSidebar(gs){
         if(!_ok2)return;
       }
       var _blH2=(_activeBL!==null&&getBaselines()[_activeBL])?20:0;
-      var row=document.createElement('div'); row.className='wrow'; row.style.height=(RH+_blH2)+'px';
+      var _tpH2=(_tpActive&&_tpActive.size>0)?22:0;
+      var row=document.createElement('div'); row.className='wrow'; row.style.height=(RH+_blH2+_tpH2)+'px';
       var nm=document.createElement('div'); nm.className='wname'; nm.textContent=w.name; nm.title=w.name;
       var eb=document.createElement('button'); eb.className='wedit edit-only'; eb.textContent='✏️';
       eb.onclick=function(e){e.stopPropagation();_wrkId=w.id;cEditWrk();};
@@ -1684,6 +1827,7 @@ function makeDrag(blk,a){
   }
   blk.addEventListener('mousedown',function(e){
     if(!EDIT_MODE)return;
+    if(e.ctrlKey||e.metaKey)return; // Ctrl+Click — אל תתחיל drag
     if(e.target.classList.contains('rhandle')||e.target.classList.contains('lhandle')||e.target.classList.contains('bedit')||e.target.classList.contains('binput'))return;
     drag=true;blk.classList.add('drag');sx=e.clientX;sl=parseFloat(blk.style.left);lastY=e.clientY;
     _selBlkId=a.id;
@@ -1796,13 +1940,62 @@ function openCtx(id,e){
   ['bctx','wctx','sctx','msctx'].forEach(function(x){document.getElementById(x).classList.remove('open');});
   if(id==='bctx'){
     var a=D.assignments.find(function(x){return x.id===_blkId;});
+    var isMulti=_selectedBlkIds.length>1;
+    // כפתורים single
+    var editBtn=document.getElementById('bctx-edit');
     var alBtn=document.getElementById('bctx-al');
-    if(alBtn&&a)alBtn.textContent=a.isAl===true?'✅ הסר שיבוץ על':'⬜ סמן שיבוץ על';
+    var delBtn=document.getElementById('bctx-del');
+    // כפתורים multi
+    var alMulti=document.getElementById('bctx-al-multi');
+    var alMultiOff=document.getElementById('bctx-al-multi-off');
+    var delMulti=document.getElementById('bctx-del-multi');
+    if(isMulti){
+      // מצב מרובה
+      if(editBtn) editBtn.style.display='none';
+      if(alBtn) alBtn.style.display='none';
+      if(delBtn) delBtn.style.display='none';
+      if(alMulti) alMulti.style.display='';
+      if(alMultiOff) alMultiOff.style.display='';
+      if(delMulti){delMulti.style.display='';delMulti.textContent='🗑️ מחק '+_selectedBlkIds.length+' נבחרים';}
+    } else {
+      // מצב יחיד
+      if(editBtn) editBtn.style.display='';
+      if(alBtn){alBtn.style.display='';alBtn.textContent=a&&a.isAl?'✅ הסר שיבוץ לא סופי':'⬜ סמן שיבוץ לא סופי';}
+      if(delBtn) delBtn.style.display='';
+      if(alMulti) alMulti.style.display='none';
+      if(alMultiOff) alMultiOff.style.display='none';
+      if(delMulti) delMulti.style.display='none';
+    }
   }
-
   var m=document.getElementById(id);m.style.top=e.clientY+'px';m.style.left=e.clientX+'px';m.classList.add('open');
   setTimeout(function(){document.addEventListener('click',function(){m.classList.remove('open');},{once:true});},10);
 }
+
+function setMultiAl(val){
+  snapshot();
+  _selectedBlkIds.forEach(function(id){var a=D.assignments.find(function(x){return x.id===id;});if(a)a.isAl=val;});
+  _selectedBlkIds=[];
+  document.querySelectorAll('.blk.selected').forEach(function(b){b.classList.remove('selected');});
+  save();render();
+}
+
+function delMultiBlks(){
+  if(!confirm('למחוק '+_selectedBlkIds.length+' שיבוצים?'))return;
+  snapshot();
+  var ids=_selectedBlkIds.slice();
+  D.assignments=D.assignments.filter(function(a){return ids.indexOf(a.id)===-1;});
+  _selectedBlkIds=[];
+  save();render();
+}
+
+function convertAllAlToRegular(){
+  if(!confirm('להפוך את כל השיבוצים הלא סופיים לשיבוצים רגילים?'))return;
+  snapshot();
+  D.assignments.forEach(function(a){if(a.isAl)a.isAl=false;});
+  D.projects.forEach(function(p){if(p.status==='שיבוץ לא סופי')p.status='בביצוע';});
+  save();render();
+}
+
 function cEditBlk(){var a=D.assignments.find(function(x){return x.id===_blkId;});if(a)openAM(a.workerId,a.start,a.end,a.projectId,a.id);}
 function cToggleAl(){
   var a=D.assignments.find(function(x){return x.id===_blkId;});
@@ -1813,9 +2006,15 @@ function cToggleAl(){
 }
 function toggleShowAl(){
   SHOW_AL=!SHOW_AL;
-  // עדכן טקסט בתפריט
   var mi=document.getElementById('toggle-al-mi');
-  if(mi)mi.textContent=SHOW_AL?'🙈 הסתר שיבוץ על':'👁 הצג שיבוץ על';
+  if(mi)mi.textContent=SHOW_AL?'🙈 הסתר שיבוץ לא סופי':'👁 הצג שיבוץ לא סופי';
+  var btn=document.getElementById('show-al-btn');
+  if(btn){
+    btn.textContent=SHOW_AL?'🙈 הסתר שיבוץ לא סופי':'👁 הצג שיבוץ לא סופי';
+    btn.style.background=SHOW_AL?'var(--acc)':'';
+    btn.style.color=SHOW_AL?'#fff':'';
+    btn.style.borderColor=SHOW_AL?'var(--acc)':'';
+  }
   document.getElementById('more-menu').style.display='none';
   render();
 }
@@ -1828,7 +2027,9 @@ function cEditWrk(){
   populateGroupSel('wg',w.group||'');
   var sel=document.getElementById('wt');sel.innerHTML='<option value="">ללא צוות</option>';
   D.teams.forEach(function(t){sel.innerHTML+='<option value="'+t.id+'">'+t.name+'</option>';});
-  document.getElementById('wn').value=w.name;sel.value=w.team||'';om('wmodal');
+  document.getElementById('wn').value=w.name;
+  document.getElementById('w-gid').value=w.globalId||'';
+  sel.value=w.team||'';om('wmodal');
 }
 function cDelWrk(){
   if(!confirm('למחוק עובד זה?'))return;snapshot();D.workers=D.workers.filter(function(x){return x.id!==_wrkId;});D.assignments=D.assignments.filter(function(a){return a.workerId!==_wrkId;});save();render();}
@@ -1861,7 +2062,9 @@ function openWM(){
   populateGroupSel('wg','');
   var sel=document.getElementById('wt');sel.innerHTML='<option value="">ללא צוות</option>';
   D.teams.forEach(function(t){sel.innerHTML+='<option value="'+t.id+'">'+t.name+'</option>';});
-  document.getElementById('wn').value='';om('wmodal');setTimeout(function(){document.getElementById('wn').focus();},200);
+  document.getElementById('wn').value='';
+  document.getElementById('w-gid').value='';
+  om('wmodal');setTimeout(function(){document.getElementById('wn').focus();},200);
 }
 function addGroup(){
   var inp=document.getElementById('wng'),name=inp.value.trim();if(!name)return;
@@ -1882,8 +2085,13 @@ function saveWorker(){
   var name=document.getElementById('wn').value.trim();if(!name)return;
   var team=document.getElementById('wt').value;
   var group=document.getElementById('wg').value;
-  if(_ewId){var w=D.workers.find(function(x){return x.id===_ewId;});if(w){w.name=name;w.team=team;w.group=group;}}
-  else D.workers.push({id:'w'+Date.now(),name:name,team:team,group:group});
+  var globalId=document.getElementById('w-gid').value.trim();
+  if(_ewId){
+    var w=D.workers.find(function(x){return x.id===_ewId;});
+    if(w){w.name=name;w.team=team;w.group=group;w.globalId=globalId||undefined;}
+  } else {
+    D.workers.push({id:'w'+Date.now(),name:name,team:team,group:group,globalId:globalId||undefined});
+  }
   save();cm('wmodal');render();
 }
 // ── parent project helpers ────────────────────────────────────────────────────
@@ -2048,6 +2256,7 @@ function openEditProject(pid){
   document.getElementById('ep-status').value=p.status||'בביצוע';
   if(document.getElementById('ep-code'))document.getElementById('ep-code').value=p.code||'';
   if(document.getElementById('ep-pm'))document.getElementById('ep-pm').value=p.pm||'';
+  if(document.getElementById('ep-gid'))document.getElementById('ep-gid').value=p.globalId||'';
   if(document.getElementById('ep-class'))document.getElementById('ep-class').value=p.classification||'';
   om('epmodal');setTimeout(function(){document.getElementById('ep-name').focus();},200);
 }
@@ -2073,6 +2282,7 @@ function saveEditProject(){
   p.code=document.getElementById('ep-code')?document.getElementById('ep-code').value.trim():'';
   p.classification=document.getElementById('ep-class')?document.getElementById('ep-class').value:'';
   p.pm=document.getElementById('ep-pm')?document.getElementById('ep-pm').value.trim():'';
+  p.globalId=document.getElementById('ep-gid')?document.getElementById('ep-gid').value.trim()||undefined:undefined;
   var parentId=document.getElementById('ep-parent')?document.getElementById('ep-parent').value:'';
   if(parentId){p.parentId=parentId;}else{delete p.parentId;}
   p.color=getChosenChildColorEp();
@@ -3692,6 +3902,134 @@ function openAnalytics(){
   rcSel.addEventListener('change',function(){buildResourceChart(this.value);});
 }
 
+
+// ── Work Plan Overlay ─────────────────────────────────────────────────────────
+var _tpActive = new Set();
+var _tpMismatches = []; // נאסף בrender, מוצג ב-renderTPOverlays // active te_proj_* keys
+var _tpPanelOpen = false;
+
+function toggleTPPanel(){
+  _tpPanelOpen = !_tpPanelOpen;
+  var panel = document.getElementById('tp-panel');
+  panel.classList.toggle('open', _tpPanelOpen);
+  var btn = document.getElementById('tp-toggle-btn');
+  btn.style.background = _tpPanelOpen ? 'var(--acc)' : '';
+  btn.style.color = _tpPanelOpen ? '#fff' : '';
+  btn.style.borderColor = _tpPanelOpen ? 'var(--acc)' : '';
+  if(_tpPanelOpen) buildTPPanel();
+}
+
+function getTPProjects(){
+  // scan localStorage for all te_proj_* keys
+  var projects = [];
+  for(var i = 0; i < localStorage.length; i++){
+    var key = localStorage.key(i);
+    if(!key || key.indexOf('te_proj_') !== 0) continue;
+    try{
+      var p = JSON.parse(localStorage.getItem(key));
+      if(p && p.data && p.meta){
+        projects.push({
+          key: key,
+          pid: p.meta.id || key.replace('te_proj_',''),
+          name: p.meta.name || '(ללא שם)',
+          updatedAt: p.meta.updatedAt || 0,
+          data: p.data
+        });
+      }
+    }catch(e){}
+  }
+  projects.sort(function(a,b){return b.updatedAt - a.updatedAt;});
+  return projects;
+}
+
+function buildTPPanel(){
+  var body = document.getElementById('tp-body');
+  body.innerHTML = '';
+  var hint = document.createElement('div');
+  hint.style.cssText = 'font-size:11px;color:var(--mut);padding:6px 0 10px;';
+  hint.textContent = 'בחר תוכנית להצגת משימות על ציר הזמן';
+  body.appendChild(hint);
+
+  var projects = getTPProjects();
+  if(!projects.length){
+    var empty = document.createElement('div');
+    empty.style.cssText = 'font-size:12px;color:var(--mut);padding:20px 8px;text-align:center;';
+    empty.innerHTML = 'לא נמצאו תוכניות עבודה<br><span style="font-size:10px;">פתח תוכנית עבודה כלשהי ושמור אותה תחילה</span>';
+    body.appendChild(empty);
+    return;
+  }
+
+  projects.forEach(function(proj){
+    var item = document.createElement('div');
+    item.className = 'tp-proj-item' + (_tpActive.has(proj.key) ? ' active' : '');
+    var chk = document.createElement('div');
+    chk.className = 'tp-check';
+    chk.textContent = _tpActive.has(proj.key) ? '✓' : '';
+    var dot = document.createElement('div');
+    dot.className = 'tp-dot';
+    // pick a color from worker list or fallback
+    var firstWorker = proj.data.workers && proj.data.workers[0];
+    dot.style.background = (firstWorker && firstWorker.color) ? firstWorker.color : '#378ADD';
+    var nm = document.createElement('div');
+    nm.className = 'tp-name';
+    nm.textContent = proj.name;
+    nm.title = proj.name;
+    var badge = document.createElement('div');
+    badge.className = 'tp-badge';
+    var taskCount = (proj.data.tasks || []).length;
+    badge.textContent = taskCount + ' משימות';
+
+    item.appendChild(chk);
+    item.appendChild(dot);
+    item.appendChild(nm);
+    item.appendChild(badge);
+
+    (function(pk){
+      item.addEventListener('click', function(){
+        if(_tpActive.has(pk)) _tpActive.delete(pk);
+        else _tpActive.add(pk);
+        buildTPPanel();
+        render(); // re-render to add/remove overlays
+      });
+    })(proj.key);
+
+    body.appendChild(item);
+  });
+}
+
+// Call this from render() to draw overlays after rows are built
+function renderTPOverlays(){
+  document.querySelectorAll('.tp-warn').forEach(function(el){el.remove();});
+  if(!_tpMismatches||!_tpMismatches.length) return;
+  _tpMismatches.forEach(function(mm){
+    // מצא את בלוק השיבוץ לפי data-aid
+    var aBlk=document.querySelector('.blk[data-aid="'+mm.aid+'"]');
+    if(!aBlk) return;
+    // אל תוסיף כפול
+    if(aBlk.querySelector('.tp-warn')) return;
+    var tipHtml=
+      '<div style="font-weight:700;font-size:11px;margin-bottom:3px;color:#FFD966;">⚠️ אי-התאמה</div>'+
+      '<div style="font-size:10px;color:#aac4e0;margin-bottom:2px;">משימה: <span style="color:#fff;">'+mm.taskName+'</span></div>'+
+      '<div style="font-size:10px;color:#aac4e0;margin-bottom:2px;">תוכנית: <span style="color:#fff;">'+mm.projName+'</span></div>'+
+      '<div style="font-size:10px;color:#aac4e0;">'+mm.start+' → '+mm.end+'</div>';
+    var warnEl=document.createElement('div');
+    warnEl.className='tp-warn';
+    warnEl.style.cssText='font-size:12px;line-height:1;pointer-events:auto;cursor:default;flex-shrink:0;';
+    warnEl.textContent='⚠️';
+    warnEl.addEventListener('mouseenter',function(e){e.stopPropagation();showBlkTooltip(e,tipHtml);});
+    warnEl.addEventListener('mousemove',function(e){posTooltip(e);});
+    warnEl.addEventListener('mouseleave',function(){hideBlkTooltip();});
+    // הכנס לתוך blk-content (sticky) — ממש לשמאל שם הפרויקט
+    var blkContent=aBlk.querySelector('.blk-content');
+    if(blkContent){
+      blkContent.appendChild(warnEl);
+    } else {
+      aBlk.appendChild(warnEl);
+    }
+  });
+}
+
+window.toggleTPPanel = toggleTPPanel;
 
 // ── init ────────────────────────────────────────────────────────────────────── ────────────────────────────────────────────────────────────────────── ────────────────────────────────────────────────────────────────────── ──────────────────────────────────────────────────────────────────────
 console.log("INIT TL_START="+fd(TL_START)+" TODAY="+fd(TODAY));
