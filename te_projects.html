@@ -49,6 +49,74 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 </head>
 <body>
 
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc, deleteDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOIwsCqDyivx8kdCUQHEVPTWFYFfB-yFw",
+      authDomain: "scheduling-a5647.firebaseapp.com",
+      projectId: "scheduling-a5647",
+      storageBucket: "scheduling-a5647.firebasestorage.app",
+      messagingSenderId: "1086458270592",
+      appId: "1:1086458270592:web:1dff903b00ed4e62426765"
+    };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window._fbSaveProject = async function(id, projData) {
+      try { await setDoc(doc(db,'te_projects',id),{payload:JSON.stringify(projData)}); }
+      catch(e){ console.error('FB save error:',e); }
+    };
+    window._fbDeleteProject = async function(id) {
+      try { await deleteDoc(doc(db,'te_projects',id)); } catch(e){}
+    };
+    window._fbLoadAllProjects = async function() {
+      try {
+        const snap = await getDocs(collection(db,'te_projects'));
+        var projects={};
+        snap.forEach(function(d){
+          try{ projects[d.id]=JSON.parse(d.data().payload); }catch(e){}
+        });
+        return projects;
+      } catch(e){ return null; }
+    };
+    window._fbSaveSprintConfig = async function(cfg) {
+      try { await setDoc(doc(db,'te_config','sprint'),{payload:JSON.stringify(cfg)}); } catch(e){}
+    };
+    window._fbLoadSprintConfig = async function() {
+      try { const s=await getDoc(doc(db,'te_config','sprint')); if(s.exists()) return JSON.parse(s.data().payload); } catch(e){}
+      return null;
+    };
+    // real-time — רענן grid כשפרויקט משתנה
+    onSnapshot(collection(db,'te_projects'), function(snap){
+      snap.docChanges().forEach(function(change){
+        try{
+          var proj=JSON.parse(change.doc.data().payload);
+          localStorage.setItem('te_proj_'+change.doc.id, JSON.stringify(proj));
+        }catch(e){}
+      });
+      if(typeof window.renderGrid==='function') window.renderGrid();
+    });
+    // טעינה ראשונית מ-Firebase
+    (async function(){
+      var projects = await window._fbLoadAllProjects();
+      if(projects){
+        Object.keys(projects).forEach(function(id){
+          var existing=null;
+          try{ existing=JSON.parse(localStorage.getItem('te_proj_'+id)); }catch(e){}
+          var remote=projects[id];
+          if(!existing||!existing.meta||remote.meta.updatedAt>existing.meta.updatedAt){
+            localStorage.setItem('te_proj_'+id, JSON.stringify(remote));
+          }
+        });
+      }
+      var sc = await window._fbLoadSprintConfig();
+      if(sc) localStorage.setItem('te_sprint_config', JSON.stringify(sc));
+      if(typeof window.renderGrid==='function') window.renderGrid();
+    })();
+  </script>
+
 <div class="topbar">
   <h1>📋 תכנית עבודה</h1>
   <div class="spacer"></div>
@@ -174,15 +242,23 @@ function listProjects(){
 function loadProject(id){try{return JSON.parse(localStorage.getItem(PREFIX+id));}catch(e){return null;}}
 function saveProject(id,meta,data){
   meta.updatedAt=Date.now();
-  localStorage.setItem(PREFIX+id,JSON.stringify({meta:meta,data:data}));
+  var proj={meta:meta,data:data};
+  localStorage.setItem(PREFIX+id,JSON.stringify(proj));
+  if(window._fbSaveProject) window._fbSaveProject(id,proj);
 }
-function deleteProject(id){localStorage.removeItem(PREFIX+id);}
+function deleteProject(id){
+  localStorage.removeItem(PREFIX+id);
+  if(window._fbDeleteProject) window._fbDeleteProject(id);
+}
 
 function getSprintConfig(){
   try{var s=localStorage.getItem('te_sprint_config');if(s)return JSON.parse(s);}catch(e){}
   return {firstSprint:27,weeksPerSprint:3,startDate:null,hoursPerWeek:42};
 }
-function saveSprintConfig(cfg){localStorage.setItem('te_sprint_config',JSON.stringify(cfg));}
+function saveSprintConfig(cfg){
+  localStorage.setItem('te_sprint_config',JSON.stringify(cfg));
+  if(window._fbSaveSprintConfig) window._fbSaveSprintConfig(cfg);
+}
 
 // ── Render home ────────────────────────────────────────────────────────────
 window.renderGrid=function renderGrid(){
