@@ -1963,7 +1963,12 @@ document.getElementById('exportBtn').onclick=function(){
 };
 
 // ── INIT ───────────────────────────────────────────────────────────────────
-if(!loadData()){
+var _urlPid=(new URLSearchParams(window.location.search)).get('pid');
+if(_urlPid&&!sessionStorage.getItem('te_active_pid')){
+  sessionStorage.setItem('te_active_pid',_urlPid);
+}
+if(!loadData()&&!_urlPid){
+  // demo data רק אם אין pid ב-URL
   D.groups=[{id:1,name:'פיתוח'},{id:2,name:'עיצוב'}];
   D.teams=[{id:1,name:'צוות Backend',gid:1},{id:2,name:'צוות Frontend',gid:1},{id:3,name:'UX',gid:2}];
   D.workers=[{id:1,name:'אלון כהן',color:'#378ADD',tid:1},{id:2,name:'מיכל לוי',color:'#1D9E75',tid:2},{id:3,name:'דוד מזרחי',color:'#D85A30',tid:3}];
@@ -1973,7 +1978,7 @@ if(!loadData()){
     {id:103,wid:2,name:'פיתוח Frontend',start:fd(addD(TODAY,-3)),end:fd(addD(TODAY,11)),color:null},
     {id:104,wid:3,name:'עיצוב UI',start:fd(addD(TODAY,7)),end:fd(addD(TODAY,18)),color:null},
   ];
-  D.sprints=[]; // auto-generated from sprint config
+  D.sprints=[];
   D.nextGid=10;D.nextTmid=10;D.nextWid=10;D.nextSid=3;D.milestones=[];D.deps=[];
 }
 document.getElementById('zlbl').textContent=ZL+'%';
@@ -1989,6 +1994,12 @@ setTimeout(function(){document.getElementById('tlwrap').scrollLeft=0;},100);
 // ── Firebase sync ──────────────────────────────────────────────────────────
 (function(){
   var pid=sessionStorage.getItem('te_active_pid');
+  // אם אין pid בsessionStorage — נסה לקרוא מה-URL
+  if(!pid){
+    var urlParams=new URLSearchParams(window.location.search);
+    pid=urlParams.get('pid');
+    if(pid) sessionStorage.setItem('te_active_pid',pid);
+  }
   if(!pid) return;
   // המתן ל-Firebase functions
   var tries=0;
