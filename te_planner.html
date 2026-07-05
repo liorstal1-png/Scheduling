@@ -903,9 +903,11 @@ function renderBody(TW,WW_){
         re.addEventListener('dblclick',function(e){
           var el=e.target;while(el&&el!==re){if(el.classList&&el.classList.contains('blk'))return;el=el.parentElement;}
           var tlwrap=document.getElementById('tlwrap');
+          var tlinner=document.getElementById('tlinner');
           var wrapRect=tlwrap.getBoundingClientRect();
-          // RTL: pixel from right edge of tlinner
-          var pixFromRight=(wrapRect.right - e.clientX) + tlwrap.scrollLeft;
+          var innerRect=tlinner.getBoundingClientRect();
+          // RTL: מרחק מימין של tlinner
+          var pixFromRight=innerRect.right - e.clientX;
           var wi=Math.floor(pixFromRight/WW_);
           if(wi<0||wi>=TL_WEEKS)return;
           var startDate=fd(wkDate(wi));
@@ -948,7 +950,7 @@ function renderBody(TW,WW_){
         var primaryW=D.workers.find(function(w){return w.id===t.wid;});
         var col=t.color||(primaryW?primaryW.color:row.obj.color);
         var blk=document.createElement('div');blk.className='blk'+(selectedTids.has(+t.id)?' sel':'');blk.dataset.tid=String(t.id);
-        blk.style.cssText='right:'+r+'px;width:'+bw+'px;background:'+col+';'+(t.risk?'outline:2px solid #E24B4A;outline-offset:-2px;':'');
+        blk.style.cssText='right:'+r+'px;width:'+bw+'px;background:'+col+';'+(t.risk?'box-shadow:inset 0 0 0 2px #E24B4A;':'');
         blk.innerHTML='<div class="rhandle-r"></div><div class="dep-dot dep-dot-r" data-tid="'+String(t.id)+'" data-side="start"></div><span class="btitle">'+t.name+'</span>'+(t.note?'<span class="blk-note-dot" title="" data-note="'+t.note.replace(/"/g,'&quot;')+'">!</span>':'')+'<button class="blk-opts">⋯</button><button class="blk-del" title="מחק">✕</button><div class="dep-dot dep-dot-l" data-tid="'+String(t.id)+'" data-side="end"></div><div class="rhandle-l"></div>';
         blk.querySelector('.blk-opts').addEventListener('click',function(e){e.stopPropagation();openBlockCtx(e,t.id);});
         blk.querySelectorAll('.dep-dot').forEach(function(dot){
@@ -1070,9 +1072,10 @@ function startDrag(e,tid,worker,blk){
   snapshot();
   var t=D.tasks.find(function(x){return x.id===tid;});
   blk.classList.add('drag');
-  var os=t.start,sx=e.clientX,last=null;
+  var os=t.start; // שמור start מקורי — לא ישתנה
+  var sx=e.clientX,last=null;
   var currentRow=blk.parentElement;
-  // save original positions — use weeks directly
+  // שמור מיקומים מקוריים של כל המשימות
   var origPos={};
   D.tasks.filter(function(x){return x.wid===worker.id;}).forEach(function(x){
     origPos[x.id]={start:x.start,end:x.end,weeks:x.weeks||1};
@@ -1082,19 +1085,20 @@ function startDrag(e,tid,worker,blk){
     var d=Math.round(-(ev.clientX-sx)/WW());
     if(d!==last){
       last=d;
+      // חשב מיקום חדש מ-os המקורי תמיד
       var newStart=addW(pd(os),d);
-      // snap to nearest Sunday
-      var day=newStart.getDay(); // 0=Sun
-      if(day!==0)newStart=addD(newStart,-day);
+      // snap ל-ראשון הקרוב
+      var day=newStart.getDay();
+      if(day!==0) newStart=addD(newStart,-day);
       t.start=fd(newStart);
-      t.end=fd(addD(addW(newStart,t.weeks-1),6));
+      t.end=fd(addD(addW(newStart,(t.weeks||1)-1),6));
       blk.style.right=dateRight(t.start)+'px';
-      // restore all other tasks to original, then push
+      // שחזר שאר המשימות ואז דחף
       D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;}).forEach(function(x){
         if(origPos[x.id]){x.start=origPos[x.id].start;x.end=origPos[x.id].end;x.weeks=origPos[x.id].weeks;}
       });
       resolvePush(t.wid);
-      // update visuals
+      // עדכן ויזואלית
       D.tasks.forEach(function(x){
         if(x.id===tid)return;
         var b=document.querySelector('.blk[data-tid="'+x.id+'"]');
@@ -1103,11 +1107,11 @@ function startDrag(e,tid,worker,blk){
         b.style.width=((x.weeks||1)*WW()-2)+'px';
       });
     }
-    // vertical - cross row
+    // גרירה אנכית — החלף שורה
     var rows=document.querySelectorAll('.tlrow[data-wid]');
     for(var i=0;i<rows.length;i++){
-      var r=rows[i].getBoundingClientRect();
-      if(ev.clientY>=r.top&&ev.clientY<r.bottom){
+      var row=rows[i].getBoundingClientRect();
+      if(ev.clientY>=row.top&&ev.clientY<row.bottom){
         var newWid=+rows[i].dataset.wid;
         if(rows[i]!==currentRow){
           rows[i].appendChild(blk);
@@ -1125,7 +1129,8 @@ function startDrag(e,tid,worker,blk){
     blk.classList.remove('drag');
     document.removeEventListener('mousemove',onMove);
     document.removeEventListener('mouseup',onUp);
-    t.end=fd(addD(addW(pd(t.start),t.weeks-1),6));
+    // וודא end תקין
+    t.end=fd(addD(addW(pd(t.start),(t.weeks||1)-1),6));
     render();
   }
   document.addEventListener('mousemove',onMove);
@@ -1336,6 +1341,11 @@ function initDepCanvas(){
 function initDepHover(){
   var btn=document.getElementById('depDelBtn');
   var _hov=null;
+  // tooltip element
+  var depTip=document.createElement('div');
+  depTip.style.cssText='position:fixed;background:#1E2A3A;color:#fff;border-radius:6px;padding:6px 10px;font-size:11px;line-height:1.5;box-shadow:0 2px 12px rgba(0,0,0,.3);pointer-events:none;z-index:501;display:none;direction:rtl;white-space:nowrap;';
+  document.body.appendChild(depTip);
+
   function check(e){
     if(_depDraft)return;
     var found=null;
@@ -1350,14 +1360,27 @@ function initDepHover(){
     }
     if(found){
       _hov=found.dep;
-      // exact bezier midpoint at t=0.5
       var a1=found.a1,a2=found.a2;
       var bcx=(a1.x+a2.x)/2;
       var mx=0.125*a1.x+0.375*bcx+0.375*bcx+0.125*a2.x;
       var my=0.125*a1.y+0.375*a1.y+0.375*a2.y+0.125*a2.y;
       btn.style.cssText='position:fixed;display:flex;left:'+(mx-7)+'px;top:'+(my-7)+'px;';
+      // tooltip — שמות המשימות
+      var fromT=D.tasks.find(function(x){return x.id===found.dep.fromTid;});
+      var toT=D.tasks.find(function(x){return x.id===found.dep.toTid;});
+      if(fromT&&toT){
+        depTip.innerHTML=
+          '<div style="font-weight:600;">'+fromT.name+'</div>'+
+          '<div style="text-align:center;color:#93C5FD;font-size:10px;">↕</div>'+
+          '<div style="font-weight:600;">'+toT.name+'</div>';
+        depTip.style.display='block';
+        depTip.style.left=(mx+16)+'px';
+        depTip.style.top=(my-20)+'px';
+      }
     } else if(!btn.matches(':hover')){
-      _hov=null;btn.style.display='none';
+      _hov=null;
+      btn.style.display='none';
+      depTip.style.display='none';
     }
   }
   document.addEventListener('mousemove',check,{passive:true});
@@ -1367,7 +1390,7 @@ function initDepHover(){
     var id=_hov.id;
     snapshot();
     D.deps=D.deps.filter(function(d){return d.id!==id;});
-    _hov=null;btn.style.display='none';
+    _hov=null;btn.style.display='none';depTip.style.display='none';
     render();toast('תלות נמחקה');
   });
 }
@@ -1393,8 +1416,9 @@ function blkAnchor(tid,side){
   var blk=document.querySelector('.blk[data-tid="'+String(tid)+'"]');
   if(!blk)return null;
   var r=blk.getBoundingClientRect();
-  // only draw if block is in viewport
   if(r.right<0||r.left>window.innerWidth||r.bottom<0||r.top>window.innerHeight)return null;
+  // RTL: start=תחילת המשימה=ימין (r.right), end=סוף=שמאל (r.left)
+  // אבל dep-dot-r נמצא בימין (side=start) ו-dep-dot-l בשמאל (side=end)
   return {x:side==='start'?r.right:r.left, y:r.top+r.height/2};
 }
 
