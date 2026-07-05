@@ -48,74 +48,12 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 </style>
 </head>
 <body>
-
-  <!-- Firebase -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc, deleteDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-    const firebaseConfig = {
-      apiKey: "AIzaSyDOIwsCqDyivx8kdCUQHEVPTWFYFfB-yFw",
-      authDomain: "scheduling-a5647.firebaseapp.com",
-      projectId: "scheduling-a5647",
-      storageBucket: "scheduling-a5647.firebasestorage.app",
-      messagingSenderId: "1086458270592",
-      appId: "1:1086458270592:web:1dff903b00ed4e62426765"
-    };
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    window._fbSaveProject = async function(id, projData) {
-      try { await setDoc(doc(db,'te_projects',id),{payload:JSON.stringify(projData)}); }
-      catch(e){ console.error('FB save error:',e); }
-    };
-    window._fbDeleteProject = async function(id) {
-      try { await deleteDoc(doc(db,'te_projects',id)); } catch(e){}
-    };
-    window._fbLoadAllProjects = async function() {
-      try {
-        const snap = await getDocs(collection(db,'te_projects'));
-        var projects={};
-        snap.forEach(function(d){
-          try{ projects[d.id]=JSON.parse(d.data().payload); }catch(e){}
-        });
-        return projects;
-      } catch(e){ return null; }
-    };
-    window._fbSaveSprintConfig = async function(cfg) {
-      try { await setDoc(doc(db,'te_config','sprint'),{payload:JSON.stringify(cfg)}); } catch(e){}
-    };
-    window._fbLoadSprintConfig = async function() {
-      try { const s=await getDoc(doc(db,'te_config','sprint')); if(s.exists()) return JSON.parse(s.data().payload); } catch(e){}
-      return null;
-    };
-    // real-time — רענן grid כשפרויקט משתנה
-    onSnapshot(collection(db,'te_projects'), function(snap){
-      snap.docChanges().forEach(function(change){
-        try{
-          var proj=JSON.parse(change.doc.data().payload);
-          localStorage.setItem('te_proj_'+change.doc.id, JSON.stringify(proj));
-        }catch(e){}
-      });
-      if(typeof window.renderGrid==='function') window.renderGrid();
-    });
-    // טעינה ראשונית מ-Firebase
-    (async function(){
-      var projects = await window._fbLoadAllProjects();
-      if(projects){
-        Object.keys(projects).forEach(function(id){
-          var existing=null;
-          try{ existing=JSON.parse(localStorage.getItem('te_proj_'+id)); }catch(e){}
-          var remote=projects[id];
-          if(!existing||!existing.meta||remote.meta.updatedAt>existing.meta.updatedAt){
-            localStorage.setItem('te_proj_'+id, JSON.stringify(remote));
-          }
-        });
-      }
-      var sc = await window._fbLoadSprintConfig();
-      if(sc) localStorage.setItem('te_sprint_config', JSON.stringify(sc));
-      if(typeof window.renderGrid==='function') window.renderGrid();
-    })();
-  </script>
+<div id="projCtxMenu" style="position:fixed;background:#fff;border:1px solid var(--brd,#E0DED8);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:300;min-width:160px;padding:4px 0;display:none;direction:rtl;">
+  <div id="projCtx-copy" style="padding:7px 13px;font-size:12px;cursor:pointer;" onmouseenter="this.style.background='#f5f5f3'" onmouseleave="this.style.background=''">📋 העתק פרויקט</div>
+  <div style="height:1px;background:#E0DED8;margin:3px 0;"></div>
+  <div id="projCtx-edit" style="padding:7px 13px;font-size:12px;cursor:pointer;" onmouseenter="this.style.background='#f5f5f3'" onmouseleave="this.style.background=''">✏️ ערוך</div>
+  <div id="projCtx-del" style="padding:7px 13px;font-size:12px;cursor:pointer;color:#E24B4A;" onmouseenter="this.style.background='#f5f5f3'" onmouseleave="this.style.background=''">🗑 מחק</div>
+</div>
 
 <div class="topbar">
   <h1>📋 תכנית עבודה</h1>
@@ -242,25 +180,51 @@ function listProjects(){
 function loadProject(id){try{return JSON.parse(localStorage.getItem(PREFIX+id));}catch(e){return null;}}
 function saveProject(id,meta,data){
   meta.updatedAt=Date.now();
-  var proj={meta:meta,data:data};
-  localStorage.setItem(PREFIX+id,JSON.stringify(proj));
-  if(window._fbSaveProject) window._fbSaveProject(id,proj);
+  localStorage.setItem(PREFIX+id,JSON.stringify({meta:meta,data:data}));
 }
-function deleteProject(id){
-  localStorage.removeItem(PREFIX+id);
-  if(window._fbDeleteProject) window._fbDeleteProject(id);
-}
+function deleteProject(id){localStorage.removeItem(PREFIX+id);}
 
 function getSprintConfig(){
   try{var s=localStorage.getItem('te_sprint_config');if(s)return JSON.parse(s);}catch(e){}
   return {firstSprint:27,weeksPerSprint:3,startDate:null,hoursPerWeek:42};
 }
-function saveSprintConfig(cfg){
-  localStorage.setItem('te_sprint_config',JSON.stringify(cfg));
-  if(window._fbSaveSprintConfig) window._fbSaveSprintConfig(cfg);
-}
+function saveSprintConfig(cfg){localStorage.setItem('te_sprint_config',JSON.stringify(cfg));}
 
 // ── Render home ────────────────────────────────────────────────────────────
+var _ctxProjId=null;
+function showProjCtx(id,x,y){
+  _ctxProjId=id;
+  var menu=document.getElementById('projCtxMenu');
+  menu.style.left=x+'px';menu.style.top=y+'px';menu.style.display='block';
+  setTimeout(function(){
+    document.addEventListener('click',function hideProjCtx(){
+      menu.style.display='none';
+      document.removeEventListener('click',hideProjCtx);
+    },{once:true});
+  },10);
+}
+function copyProj(id){
+  var proj=loadProject(id);
+  if(!proj) return;
+  var newId='p'+Date.now();
+  var newMeta=JSON.parse(JSON.stringify(proj.meta));
+  newMeta.id=newId;
+  newMeta.name=proj.meta.name+' העתק';
+  newMeta.globalId=proj.meta.globalId?proj.meta.globalId+'-C':undefined;
+  newMeta.createdAt=Date.now();
+  newMeta.updatedAt=Date.now();
+  var newData=JSON.parse(JSON.stringify(proj.data||{}));
+  saveProject(newId,newMeta,newData);
+  renderGrid();
+  toast('✓ הפרויקט הועתק');
+}
+function toast(msg){
+  var t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1E3A5F;color:#fff;padding:7px 18px;border-radius:8px;font-size:13px;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none;font-family:Heebo,sans-serif;';
+  t.textContent=msg;document.body.appendChild(t);
+  setTimeout(function(){t.remove();},2000);
+}
+
 window.renderGrid=function renderGrid(){
   var g=document.getElementById('grid');g.innerHTML='';
   listProjects().forEach(function(p){
@@ -288,6 +252,10 @@ window.renderGrid=function renderGrid(){
       });
       eb.addEventListener('click',function(e){e.stopPropagation();editProj(id,e);});
       db.addEventListener('click',function(e){e.stopPropagation();delProj(id,e);});
+      c.addEventListener('contextmenu',function(e){
+        e.preventDefault();e.stopPropagation();
+        showProjCtx(id,e.clientX,e.clientY);
+      });
     })(String(p.id));
     g.appendChild(c);
   });
@@ -366,7 +334,7 @@ function openProject(id){
   } else {
     sessionStorage.removeItem('te_active');
   }
-  window.location.href='./te_planner.html?pid='+id;
+  window.location.href='./te_planner.html';
 }
 
 // ── Settings ───────────────────────────────────────────────────────────────
@@ -582,6 +550,9 @@ document.addEventListener('keydown',function(e){
 });
 
 renderGrid();
+document.getElementById('projCtx-copy').onclick=function(){document.getElementById('projCtxMenu').style.display='none';copyProj(_ctxProjId);};
+document.getElementById('projCtx-edit').onclick=function(){document.getElementById('projCtxMenu').style.display='none';if(_ctxProjId)openProjModal(_ctxProjId);};
+document.getElementById('projCtx-del').onclick=function(){document.getElementById('projCtxMenu').style.display='none';if(_ctxProjId)delProj(_ctxProjId,{stopPropagation:function(){}});};
 </script>
 </body>
 </html>
