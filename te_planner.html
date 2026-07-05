@@ -954,7 +954,13 @@ function renderBody(TW,WW_){
         blk.innerHTML='<div class="rhandle-r"></div><div class="dep-dot dep-dot-r" data-tid="'+String(t.id)+'" data-side="start"></div><span class="btitle">'+t.name+'</span>'+(t.note?'<span class="blk-note-dot" title="" data-note="'+t.note.replace(/"/g,'&quot;')+'">!</span>':'')+'<button class="blk-opts">⋯</button><button class="blk-del" title="מחק">✕</button><div class="dep-dot dep-dot-l" data-tid="'+String(t.id)+'" data-side="end"></div><div class="rhandle-l"></div>';
         blk.querySelector('.blk-opts').addEventListener('click',function(e){e.stopPropagation();openBlockCtx(e,t.id);});
         blk.querySelectorAll('.dep-dot').forEach(function(dot){
-          dot.addEventListener('mousedown',(function(d){return function(e){e.preventDefault();e.stopPropagation();startDepDrag(e,d);};})(dot));
+          // רק dep-dot-l (end) מאפשרת גרירה לתחילת משימה אחרת
+          if(dot.dataset.side==='end'){
+            dot.addEventListener('mousedown',(function(d){return function(e){e.preventDefault();e.stopPropagation();startDepDrag(e,d);};})(dot));
+          } else {
+            // dep-dot-r (start) — רק קבלה, לא גרירה
+            dot.style.cursor='default';
+          }
         });
 
 
@@ -1465,23 +1471,23 @@ function startDepDrag(e,dot){
       var cx=dr.left+dr.width/2,cy=dr.top+dr.height/2;
       if(Math.sqrt((cx-e.clientX)*(cx-e.clientX)+(cy-e.clientY)*(cy-e.clientY))<20)found=d;
     });
-    // fallback: snap to block
+    // fallback: snap to block — תמיד side=start
     if(!found){
       var el=document.elementFromPoint(e.clientX,e.clientY);
       while(el&&el!==document.body){
         if(el.classList&&el.classList.contains('blk')&&+el.dataset.tid!==fromTid){
-          var br=el.getBoundingClientRect();
-          var toSide=e.clientX>=(br.left+br.width/2)?'start':'end';
-          found={dataset:{tid:el.dataset.tid,side:toSide}};break;
+          found={dataset:{tid:el.dataset.tid,side:'start'}};break;
         }
         el=el.parentElement;
       }
     }
     if(found){
       var toTid=+found.dataset.tid, toSide=found.dataset.side;
+      // רק מסוף (end) להתחלה (start)
+      if(toSide!=='start'){toast('תלות מותרת רק מסוף משימה לתחילת משימה');redrawDeps();return;}
       if(!D.deps.find(function(d){return d.fromTid===fromTid&&d.toTid===toTid;})){
         snapshot();
-        D.deps.push({id:D.nextDid++,fromTid:fromTid,fromSide:fromSide,toTid:toTid,toSide:toSide});
+        D.deps.push({id:D.nextDid++,fromTid:fromTid,fromSide:'end',toTid:toTid,toSide:'start'});
         render();toast('תלות נוספה ✓');
       }
     }
