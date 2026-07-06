@@ -954,7 +954,14 @@ function renderBody(TW,WW_){
         blk.innerHTML='<div class="rhandle-r"></div><div class="dep-dot dep-dot-r" data-tid="'+String(t.id)+'" data-side="start"></div><span class="btitle">'+t.name+'</span>'+(t.note?'<span class="blk-note-dot" title="" data-note="'+t.note.replace(/"/g,'&quot;')+'">!</span>':'')+'<button class="blk-opts">⋯</button><button class="blk-del" title="מחק">✕</button><div class="dep-dot dep-dot-l" data-tid="'+String(t.id)+'" data-side="end"></div><div class="rhandle-l"></div>';
         blk.querySelector('.blk-opts').addEventListener('click',function(e){e.stopPropagation();openBlockCtx(e,t.id);});
         blk.querySelectorAll('.dep-dot').forEach(function(dot){
-          dot.addEventListener('mousedown',(function(d){return function(e){e.preventDefault();e.stopPropagation();startDepDrag(e,d);};})(dot));
+          if(dot.dataset.side==='end'){
+            // רק dep-dot-l (סוף משימה) מאפשר גרירה
+            dot.style.cursor='crosshair';
+            dot.addEventListener('mousedown',(function(d){return function(e){e.preventDefault();e.stopPropagation();startDepDrag(e,d);};})(dot));
+          } else {
+            // dep-dot-r (התחלת משימה) — רק קבלת תלות, לא גרירה
+            dot.style.cursor='default';
+          }
         });
 
 
@@ -1338,6 +1345,12 @@ function initDepCanvas(){
 function initDepHover(){
   var btn=document.getElementById('depDelBtn');
   var _hov=null;
+  // tooltip על ה-X
+  var depTip=document.createElement('div');
+  depTip.id='depTip';
+  depTip.style.cssText='position:fixed;background:#1E2A3A;color:#fff;border-radius:6px;padding:7px 11px;font-size:11px;font-family:Heebo,sans-serif;line-height:1.7;box-shadow:0 2px 12px rgba(0,0,0,.35);pointer-events:none;z-index:502;display:none;direction:rtl;white-space:nowrap;text-align:center;';
+  document.body.appendChild(depTip);
+
   function check(e){
     if(_depDraft)return;
     var found=null;
@@ -1346,33 +1359,48 @@ function initDepHover(){
       var a1=blkAnchor(dep.fromTid,dep.fromSide);
       var a2=blkAnchor(dep.toTid,dep.toSide);
       if(!a1||!a2)continue;
-      if(distToCurve(e.clientX,e.clientY,a1.x,a1.y,a2.x,a2.y)<10){
+      if(!a1.visible&&!a2.visible)continue;
+      if(distToCurve(e.clientX,e.clientY,a1.x,a1.y,a2.x,a2.y)<12){
         found={dep:dep,a1:a1,a2:a2};break;
       }
     }
     if(found){
       _hov=found.dep;
-      // exact bezier midpoint at t=0.5
       var a1=found.a1,a2=found.a2;
       var bcx=(a1.x+a2.x)/2;
       var mx=0.125*a1.x+0.375*bcx+0.375*bcx+0.125*a2.x;
       var my=0.125*a1.y+0.375*a1.y+0.375*a2.y+0.125*a2.y;
       btn.style.cssText='position:fixed;display:flex;left:'+(mx-7)+'px;top:'+(my-7)+'px;';
+      // tooltip
+      var fromT=D.tasks.find(function(x){return +x.id===+found.dep.fromTid;});
+      var toT=D.tasks.find(function(x){return +x.id===+found.dep.toTid;});
+      if(fromT&&toT){
+        depTip.innerHTML=
+          '<div style="font-weight:600;color:#fff;">'+fromT.name+'</div>'+
+          '<div style="color:#93C5FD;font-size:12px;">↓</div>'+
+          '<div style="font-weight:600;color:#fff;">'+toT.name+'</div>';
+        depTip.style.left=(mx+14)+'px';
+        depTip.style.top=(my-30)+'px';
+        depTip.style.display='block';
+      }
     } else if(!btn.matches(':hover')){
-      _hov=null;btn.style.display='none';
+      _hov=null;
+      btn.style.display='none';
+      depTip.style.display='none';
     }
   }
   document.addEventListener('mousemove',check,{passive:true});
   btn.addEventListener('click',function(e){
     e.stopPropagation();
     if(!_hov)return;
-    var id=_hov.id;
     snapshot();
-    D.deps=D.deps.filter(function(d){return d.id!==id;});
-    _hov=null;btn.style.display='none';
+    D.deps=D.deps.filter(function(d){return d.id!==_hov.id;});
+    _hov=null;btn.style.display='none';depTip.style.display='none';
     render();toast('תלות נמחקה');
   });
 }
+
+
 
 function distToCurve(px,py,x1,y1,x2,y2){
   // sample bezier at N points and return min distance to (px,py)
@@ -1395,9 +1423,7 @@ function blkAnchor(tid,side){
   var blk=document.querySelector('.blk[data-tid="'+String(tid)+'"]');
   if(!blk)return null;
   var r=blk.getBoundingClientRect();
-  // only draw if block is in viewport
-  if(r.right<0||r.left>window.innerWidth||r.bottom<0||r.top>window.innerHeight)return null;
-  return {x:side==='start'?r.right:r.left, y:r.top+r.height/2};
+  return {x:side==='start'?r.right:r.left, y:r.top+r.height/2, visible:(r.right>0&&r.left<window.innerWidth&&r.bottom>0&&r.top<window.innerHeight)};
 }
 
 function drawCurve(x1,y1,x2,y2,draft){
@@ -1419,7 +1445,7 @@ function redrawDeps(){
   D.deps.forEach(function(dep){
     var a1=blkAnchor(dep.fromTid,dep.fromSide);
     var a2=blkAnchor(dep.toTid,dep.toSide);
-    if(a1&&a2)drawCurve(a1.x,a1.y,a2.x,a2.y,false);
+    if(a1&&a2&&(a1.visible||a2.visible))drawCurve(a1.x,a1.y,a2.x,a2.y,false);
   });
   if(_depDraft)drawCurve(_depDraft.x1,_depDraft.y1,_depDraft.mx,_depDraft.my,true);
 }
@@ -1435,31 +1461,30 @@ function startDepDrag(e,dot){
     document.removeEventListener('mousemove',onMove);
     document.removeEventListener('mouseup',onUp);
     _depDraft=null;
-    // find target dot by proximity (20px radius)
+    // מצא יעד — רק dep-dot-r (start) כיעד
     var found=null;
-    document.querySelectorAll('.dep-dot').forEach(function(d){
+    document.querySelectorAll('.dep-dot-r').forEach(function(d){
       if(+d.dataset.tid===fromTid)return;
       var dr=d.getBoundingClientRect();
       var cx=dr.left+dr.width/2,cy=dr.top+dr.height/2;
       if(Math.sqrt((cx-e.clientX)*(cx-e.clientX)+(cy-e.clientY)*(cy-e.clientY))<20)found=d;
     });
-    // fallback: snap to block
+    // fallback: snap to block — תמיד to=start
     if(!found){
       var el=document.elementFromPoint(e.clientX,e.clientY);
       while(el&&el!==document.body){
         if(el.classList&&el.classList.contains('blk')&&+el.dataset.tid!==fromTid){
-          var br=el.getBoundingClientRect();
-          var toSide=e.clientX>=(br.left+br.width/2)?'start':'end';
-          found={dataset:{tid:el.dataset.tid,side:toSide}};break;
+          found={dataset:{tid:el.dataset.tid,side:'start'}};break;
         }
         el=el.parentElement;
       }
     }
     if(found){
-      var toTid=+found.dataset.tid, toSide=found.dataset.side;
-      if(!D.deps.find(function(d){return d.fromTid===fromTid&&d.toTid===toTid;})){
+      var toTid=+found.dataset.tid;
+      var toSide=found.dataset.side||'start';
+      if(toSide==='start'&&!D.deps.find(function(d){return d.fromTid===fromTid&&d.toTid===toTid;})){
         snapshot();
-        D.deps.push({id:D.nextDid++,fromTid:fromTid,fromSide:fromSide,toTid:toTid,toSide:toSide});
+        D.deps.push({id:D.nextDid++,fromTid:fromTid,fromSide:'end',toTid:toTid,toSide:'start'});
         render();toast('תלות נוספה ✓');
       }
     }
