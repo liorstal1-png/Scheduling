@@ -30,8 +30,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .sidebar-body{flex:1;overflow-y:auto;overflow-x:hidden;}
 .sidebar-body::-webkit-scrollbar{width:4px;}
 .sidebar-body::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px;}
-.resize-handle{width:5px;cursor:col-resize;background:transparent;flex-shrink:0;}
-.resize-handle:hover,.resize-handle.dragging{background:var(--acc);}
+.resize-handle{width:10px;cursor:col-resize;background:transparent;flex-shrink:0;border-right:2px solid var(--brd);}
+.resize-handle:hover,.resize-handle.dragging{background:var(--acc);border-color:var(--acc);}
 /* tree */
 .tree-group-hdr{height:28px;min-height:28px;display:flex;align-items:center;padding:0 6px 0 8px;gap:4px;background:#E4E2DB;border-bottom:1px solid #ccc;cursor:pointer;user-select:none;flex-shrink:0;}
 .tree-group-hdr:hover{background:#d8d6cf;}
@@ -2211,14 +2211,18 @@ function openImportOrgModal(){
 
   org.groups.forEach(function(g){
     var gExists=D.groups.find(function(x){return x.id===g.id;});
+    // צבע קבוצה — מהעובד הראשון בקבוצה
+    var gWorkers=(org.workers||[]).filter(function(w){return w.group===g.id;});
+    var gColor=(gWorkers[0]&&gWorkers[0].color)?gWorkers[0].color:'#888';
+    
     var gDiv=document.createElement('div');
     gDiv.style.cssText='margin-bottom:8px;border:1px solid var(--brd);border-radius:var(--r);overflow:hidden;';
 
     // שורת קבוצה
     var gHdr=document.createElement('div');
-    gHdr.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+(g.color?g.color+'22':'#E4E2DB')+';';
+    gHdr.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+gColor+'22;';
     var gDot=document.createElement('div');
-    gDot.style.cssText='width:10px;height:10px;border-radius:50%;background:'+(g.color||'#888')+';flex-shrink:0;';
+    gDot.style.cssText='width:10px;height:10px;border-radius:50%;background:'+gColor+';flex-shrink:0;';
     var gName=document.createElement('span');
     gName.style.cssText='font-size:12px;font-weight:700;flex:1;';
     gName.textContent=g.name;
@@ -2228,50 +2232,53 @@ function openImportOrgModal(){
     if(gExists){gBtn.textContent='קיים';gBtn.disabled=true;gBtn.style.color='var(--mut)';}
     else{
       gBtn.textContent='+ הוסף';
-      gBtn.onclick=(function(grp){return function(){
+      gBtn.onclick=(function(grp,col){return function(){
         snapshot();
-        D.groups.push(JSON.parse(JSON.stringify(grp)));
+        var gc=JSON.parse(JSON.stringify(grp));
+        gc.color=col; // שמור צבע
+        D.groups.push(gc);
         if(D.nextGid<=grp.id) D.nextGid=grp.id+1;
         saveData();render();openImportOrgModal();
-      };})(g);
+      };})(g,gColor);
     }
     gHdr.appendChild(gDot);gHdr.appendChild(gName);gHdr.appendChild(gBtn);
     gDiv.appendChild(gHdr);
 
-    // צוותות בקבוצה
-    (org.teams||[]).filter(function(t){return t.gid===g.id;}).forEach(function(t){
+    // כל עובדי הקבוצה (כולל אלה עם צוות) — מקובצים לפי צוות
+    var teamsInGroup=(org.teams||[]).filter(function(t){return t.gid===g.id;});
+    teamsInGroup.forEach(function(t){
       var tExists=D.teams.find(function(x){return x.id===t.id;});
       var tRow=document.createElement('div');
-      tRow.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 10px 5px 20px;border-top:1px solid var(--brd);background:#F0EEE8;';
+      tRow.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 10px 5px 16px;border-top:1px solid var(--brd);background:#F0EEE8;';
       var tName=document.createElement('span');tName.style.cssText='font-size:11px;font-weight:600;flex:1;'+(tExists?'color:var(--mut);':'');
       tName.textContent=t.name+(tExists?' (קיים)':'');
       var tBtn=document.createElement('button');tBtn.className='btn btn-sm';tBtn.style.cssText='font-size:10px;padding:2px 8px;';
       if(tExists){tBtn.textContent='קיים';tBtn.disabled=true;tBtn.style.color='var(--mut)';}
       else{
         tBtn.textContent='+ הוסף';
-        tBtn.onclick=(function(team){return function(){
+        tBtn.onclick=(function(team,grp,col){return function(){
           snapshot();
-          if(!D.groups.find(function(x){return x.id===team.gid;})){
-            var pg=org.groups.find(function(x){return x.id===team.gid;});
-            if(pg){D.groups.push(JSON.parse(JSON.stringify(pg)));if(D.nextGid<=pg.id)D.nextGid=pg.id+1;}
+          if(!D.groups.find(function(x){return x.id===grp.id;})){
+            var gc=JSON.parse(JSON.stringify(grp));gc.color=col;
+            D.groups.push(gc);if(D.nextGid<=grp.id)D.nextGid=grp.id+1;
           }
           D.teams.push(JSON.parse(JSON.stringify(team)));
           if(D.nextTmid<=team.id)D.nextTmid=team.id+1;
           saveData();render();openImportOrgModal();
-        };})(t);
+        };})(t,g,gColor);
       }
       tRow.appendChild(tName);tRow.appendChild(tBtn);
       gDiv.appendChild(tRow);
 
-      // עובדים בצוות
+      // עובדים בצוות זה
       (org.workers||[]).filter(function(w){return w.team===t.id;}).forEach(function(w){
-        gDiv.appendChild(_buildWorkerRow(w,org));
+        gDiv.appendChild(_buildWorkerRow(w,org,g,gColor));
       });
     });
 
-    // עובדים ישירות בקבוצה
-    (org.workers||[]).filter(function(w){return w.group===g.id&&!w.team;}).forEach(function(w){
-      gDiv.appendChild(_buildWorkerRow(w,org));
+    // עובדים ישירות בקבוצה (ללא צוות)
+    (org.workers||[]).filter(function(w){return w.group===g.id&&(!w.team||!teamsInGroup.find(function(t){return t.id===w.team;}));}).forEach(function(w){
+      gDiv.appendChild(_buildWorkerRow(w,org,g,gColor));
     });
 
     body.appendChild(gDiv);
@@ -2287,38 +2294,41 @@ function openImportOrgModal(){
 }
 window.openImportOrgModal=openImportOrgModal;
 
-function _buildWorkerRow(w,org){
+function _buildWorkerRow(w,org,grp,gColor){
   var wExists=D.workers.find(function(x){return x.id===w.id;});
   var wDiv=document.createElement('div');
   wDiv.style.cssText='display:flex;align-items:center;gap:8px;padding:4px 10px 4px 30px;border-top:1px solid var(--brd);background:#fff;';
-  var dot=document.createElement('div');dot.style.cssText='width:8px;height:8px;border-radius:50%;background:'+(w.color||'#999')+';flex-shrink:0;';
+  var wColor=w.color||(gColor||'#999');
+  var dot=document.createElement('div');dot.style.cssText='width:8px;height:8px;border-radius:50%;background:'+wColor+';flex-shrink:0;';
   var nm=document.createElement('span');nm.style.cssText='font-size:11px;flex:1;'+(wExists?'color:var(--mut);':'');
   nm.textContent=w.name+(wExists?' (קיים)':'');
   var wBtn=document.createElement('button');wBtn.className='btn btn-sm';wBtn.style.cssText='font-size:10px;padding:2px 8px;';
   if(wExists){wBtn.textContent='קיים';wBtn.disabled=true;wBtn.style.color='var(--mut)';}
   else{
     wBtn.textContent='+ הוסף';
-    wBtn.onclick=(function(worker){return function(){
+    wBtn.onclick=(function(worker,g,col){return function(){
       snapshot();
-      // הוסף קבוצה/צוות אם חסרים
+      // הוסף קבוצה אם חסרה (עם צבע)
       if(worker.group&&!D.groups.find(function(x){return x.id===worker.group;})){
         var pg=org.groups.find(function(x){return x.id===worker.group;});
-        if(pg){D.groups.push(JSON.parse(JSON.stringify(pg)));if(D.nextGid<=pg.id)D.nextGid=pg.id+1;}
+        if(pg){var gc=JSON.parse(JSON.stringify(pg));gc.color=col;D.groups.push(gc);if(D.nextGid<=pg.id)D.nextGid=pg.id+1;}
       }
+      // הוסף צוות אם חסר
       if(worker.team&&!D.teams.find(function(x){return x.id===worker.team;})){
         var pt=org.teams.find(function(x){return x.id===worker.team;});
         if(pt){D.teams.push(JSON.parse(JSON.stringify(pt)));if(D.nextTmid<=pt.id)D.nextTmid=pt.id+1;}
       }
-      // עובד בplanner: המר מבנה gantt לmבנה planner
+      // עובד בplanner
       var planWorker={
-        id:worker.id,name:worker.name,color:worker.color,
+        id:worker.id,name:worker.name,
+        color:worker.color||col,
         globalId:worker.globalId,
         gid:worker.group,tid:worker.team
       };
       D.workers.push(planWorker);
       if(D.nextWid<=worker.id)D.nextWid=worker.id+1;
       saveData();render();openImportOrgModal();
-    };})(w);
+    };})(w,grp,gColor||w.color||'#999');
   }
   wDiv.appendChild(dot);wDiv.appendChild(nm);wDiv.appendChild(wBtn);
   return wDiv;

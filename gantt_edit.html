@@ -33,8 +33,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .main{display:flex;flex:1;overflow:hidden;min-height:0;direction:rtl;}
 
 /* project panel — rightmost in RTL = leftmost in LTR flex */
-.resize-handle{width:5px;cursor:col-resize;background:transparent;flex-shrink:0;transition:background .15s;}
-.resize-handle:hover,.resize-handle.dragging{background:var(--accent,#378ADD);}
+.resize-handle{width:10px;cursor:col-resize;background:transparent;flex-shrink:0;transition:background .15s;border-right:2px solid var(--brd);}
+.resize-handle:hover,.resize-handle.dragging{background:var(--accent,#378ADD);border-color:var(--accent,#378ADD);}
 .ppanel{width:200px;min-width:80px;flex-shrink:0;background:var(--sur);border-left:2px solid var(--brd);display:flex;flex-direction:column;direction:rtl;overflow:hidden;}
 .ppanel-hdr{padding:7px 9px;font-size:11px;font-weight:700;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .plist{flex:1;overflow-y:auto;padding:5px;}
@@ -1595,6 +1595,7 @@ function buildProjItem(p, isChild){
     });
     item.addEventListener('contextmenu',function(e){
       e.preventDefault();e.stopPropagation();
+      if(!EDIT_MODE)return;
       showProjContextMenu(e,proj);
     });
   })(p);
