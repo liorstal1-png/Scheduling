@@ -380,7 +380,18 @@ body:not(.edit-mode) .edit-only{display:none!important;}
     <div class="tp-legend-row"><div style="width:28px;height:10px;border-radius:3px;background:#378ADD;opacity:.4;"></div><span>משימת תוכנית</span></div>
     <div class="tp-legend-row"><div style="width:28px;height:10px;border-radius:3px;background:#E24B4A;opacity:.4;outline:2px solid #E24B4A;"></div><span>התנגשות עם שיבוץ</span></div>
   </div>
+  <div style="padding:8px;border-top:1px solid rgba(255,255,255,.15);margin-top:4px;">
+    <div style="font-size:10px;color:rgba(255,255,255,.6);margin-bottom:4px;">שעות עבודה לשבוע לעובד</div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <input type="number" id="tp-hours-week" min="1" max="80" value="42"
+        style="width:56px;padding:4px 6px;border:1px solid rgba(255,255,255,.3);border-radius:4px;background:rgba(255,255,255,.1);color:#fff;font-family:Heebo,sans-serif;font-size:12px;text-align:center;"
+        onchange="saveTPHoursPerWeek(this.value)"/>
+      <span style="font-size:11px;color:rgba(255,255,255,.6);">שעות / שבוע</span>
+    </div>
+  </div>
 </div>
+
+<div id="proj-ctx-menu" class="ctx" style="direction:rtl;min-width:180px;"></div>
 
 <div class="fbar" id="fbar"></div>
 
@@ -1576,12 +1587,15 @@ function buildProjItem(p, isChild){
   (function(proj){
     item.addEventListener('mousedown',function(e){
       if(e.target===del||e.target===edt||e.target===grip)return;
-      if(!EDIT_MODE)return; // במצב צפייה — לא גוררים, מאפשרים click
+      if(!EDIT_MODE)return;
       e.preventDefault();startProjDrag(e,proj,item);
     });
     item.addEventListener('click',function(e){
       if(e.target===del||e.target===edt||e.target===grip)return;
-      // סינון רק דרך ה-✓, לא לחיצה ישירה
+    });
+    item.addEventListener('contextmenu',function(e){
+      e.preventDefault();e.stopPropagation();
+      showProjContextMenu(e,proj);
     });
   })(p);
   return item;
@@ -3908,6 +3922,111 @@ var _tpActive = new Set();
 var _tpMismatches = []; // נאסף בrender, מוצג ב-renderTPOverlays // active te_proj_* keys
 var _tpPanelOpen = false;
 
+function showProjContextMenu(e,proj){
+  var menu=document.getElementById('proj-ctx-menu');
+  menu.innerHTML='';
+
+  // בדוק אם יש תוכנית עבודה קיימת לפרויקט זה
+  var existingPlan=null;
+  try{
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k&&k.indexOf('te_proj_')===0){
+        var p=JSON.parse(localStorage.getItem(k));
+        if(p&&p.meta&&p.meta.globalId&&proj.globalId&&p.meta.globalId===proj.globalId){
+          existingPlan={key:k,name:p.meta.name,id:k.replace('te_proj_','')};
+          break;
+        }
+      }
+    }
+  }catch(ex){}
+
+  if(!existingPlan){
+    var createItem=document.createElement('div');
+    createItem.className='ci';
+    createItem.textContent='📋 צור תוכנית עבודה';
+    createItem.onclick=function(){
+      menu.classList.remove('open');
+      createWorkPlan(proj);
+    };
+    menu.appendChild(createItem);
+  } else {
+    var delItem=document.createElement('div');
+    delItem.className='ci del';
+    delItem.textContent='🗑 מחק תוכנית עבודה';
+    delItem.onclick=function(){
+      menu.classList.remove('open');
+      deleteWorkPlan(existingPlan,proj.name);
+    };
+    menu.appendChild(delItem);
+  }
+
+  // מיקום — ליד הפריט, לא לפי עכבר
+  var itemEl=e.currentTarget;
+  var rect=itemEl.getBoundingClientRect();
+  menu.classList.add('open');
+  // מניעת יציאה מהמסך
+  var mw=menu.offsetWidth||180;
+  var left=rect.right+4;
+  if(left+mw>window.innerWidth) left=rect.left-mw-4;
+  menu.style.left=left+'px';
+  menu.style.top=rect.top+'px';
+
+  setTimeout(function(){
+    document.addEventListener('click',function h(){
+      menu.classList.remove('open');
+      document.removeEventListener('click',h);
+    });
+  },10);
+}
+
+function deleteWorkPlan(plan,projName){
+  if(!confirm('האם אתה בטוח שברצונך למחוק את תוכנית העבודה של "'+projName+'"?\nלא ניתן לשחזר את הפעולה.'))return;
+  localStorage.removeItem(plan.key);
+  if(window._fbDeleteProject) window._fbDeleteProject(plan.id);
+  // עדכן פאנל תוכניות עבודה
+  if(window._tpActive) window._tpActive.delete(plan.key);
+  buildTPPanel();
+  render();
+  toast('תוכנית העבודה נמחקה');
+}
+
+function createWorkPlan(proj){
+  // צור פרויקט חדש בתוכניות העבודה עם אותו globalId
+  var pid='p'+Date.now();
+  var meta={
+    id:pid,
+    name:proj.name,
+    globalId:proj.globalId||('G_'+proj.id),
+    createdAt:Date.now(),
+    updatedAt:Date.now()
+  };
+  // נתוני תוכנית ריקים — עובדים ייבחרו מהשיבוץ
+  var data={
+    groups:[],teams:[],workers:[],
+    tasks:[],sprints:JSON.parse(JSON.stringify(D.sprints||[])),
+    milestones:[],deps:[],shapes:[],
+    nextGid:10,nextTmid:20,nextWid:30,
+    nextTid:100,nextSid:1,nextMid:1,nextDid:1,nextShapeId:1,
+    hoursPerWeek:D.hoursPerWeek||42
+  };
+  var projObj={meta:meta,data:data};
+  localStorage.setItem('te_proj_'+pid,JSON.stringify(projObj));
+  // שמור ב-Firebase
+  if(window._fbSaveProject) window._fbSaveProject(pid,projObj);
+  // פתח את התוכנית
+  sessionStorage.setItem('te_active_pid',pid);
+  sessionStorage.setItem('te_active_pname',proj.name);
+  window.open('./te_planner.html?pid='+pid,'_blank');
+  toast('תוכנית עבודה נוצרה ל-'+proj.name);
+}
+
+function saveTPHoursPerWeek(val){
+  var n=parseInt(val)||42;
+  D.hoursPerWeek=n;
+  save();
+}
+
 function toggleTPPanel(){
   _tpPanelOpen = !_tpPanelOpen;
   var panel = document.getElementById('tp-panel');
@@ -4030,6 +4149,12 @@ function renderTPOverlays(){
 }
 
 window.toggleTPPanel = toggleTPPanel;
+
+// שחזר שעות לשבוע
+(function(){
+  var inp=document.getElementById('tp-hours-week');
+  if(inp&&D.hoursPerWeek) inp.value=D.hoursPerWeek;
+})();
 
 // ── init ────────────────────────────────────────────────────────────────────── ────────────────────────────────────────────────────────────────────── ────────────────────────────────────────────────────────────────────── ──────────────────────────────────────────────────────────────────────
 console.log("INIT TL_START="+fd(TL_START)+" TODAY="+fd(TODAY));

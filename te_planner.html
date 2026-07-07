@@ -210,6 +210,15 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
       });
     };
 
+    // ── Load gantt data (workers, groups, teams, sprints) ──
+    window._fbLoadGanttData = async function() {
+      try {
+        const snap = await getDoc(doc(db, 'gantt', 'data'));
+        if(snap.exists()) return JSON.parse(snap.data().payload);
+      } catch(e) {}
+      return null;
+    };
+
   </script>
 </head>
 <body>
@@ -1766,8 +1775,8 @@ if(_pt){var _tel=document.getElementById('plannerTitle');if(_tel)_tel.textConten
 })();
 
 // ── TOOLBAR ────────────────────────────────────────────────────────────────
-document.getElementById('addGroupBtn').onclick=function(){openGroupModal(null);};
-document.getElementById('addWorkerBtn').onclick=function(){openWorkerModal(null,null);};
+document.getElementById('addGroupBtn').onclick=function(){openImportOrgModal();};
+document.getElementById('addWorkerBtn').onclick=function(){openImportOrgModal();};
 document.getElementById('addTaskBtn').onclick=function(){openTaskModal(null);};
 document.getElementById('addSprintBtn').onclick=function(){openSprintModal(null);};
 document.getElementById('rangeBtn').onclick=function(){document.getElementById('range-s').value=fd(TL_START);document.getElementById('range-w').value=TL_WEEKS;om('rangemodal');};
@@ -2138,6 +2147,173 @@ window.updateTaskEnd=updateTaskEnd;
 window.updateTaskWeeks=updateTaskWeeks;
 
 // Expose modal functions globally
+
+// ── מקור נתונים: קבוצות/עובדים מאפליקציית השיבוצים ────────────────────────
+var _ganttData=null; // נטען פעם אחת מFirebase
+
+async function loadGanttData(){
+  if(_ganttData) return _ganttData;
+  // נסה localStorage קודם
+  try{
+    var s=localStorage.getItem('gantt7');
+    if(s){_ganttData=JSON.parse(s);return _ganttData;}
+  }catch(e){}
+  // Firebase
+  if(window._fbLoadGanttData){
+    var d=await window._fbLoadGanttData();
+    if(d){_ganttData=d;localStorage.setItem('gantt7',JSON.stringify(d));return _ganttData;}
+  }
+  return null;
+}
+
+function getOrgFromGantt(){
+  if(!_ganttData) return {groups:[],teams:[],workers:[]};
+  return {
+    groups:_ganttData.groups||[],
+    teams:_ganttData.teams||[],
+    workers:_ganttData.workers||[]
+  };
+}
+
+// טעינת gantt data בטעינה
+(function(){
+  var tries=0;
+  var iv=setInterval(async function(){
+    tries++;if(tries>30){clearInterval(iv);return;}
+    var d=await loadGanttData();
+    if(d){clearInterval(iv);}
+  },300);
+})();
+
+function openImportOrgModal(){
+  // אם אין נתוני גנט — נסה לטעון
+  if(!_ganttData){
+    loadGanttData().then(function(){openImportOrgModal();});
+    toast('טוען נתוני שיבוץ...');return;
+  }
+  var org=getOrgFromGantt();
+  var body=document.getElementById('iom-body');
+  body.innerHTML='';
+
+  if(!org.groups||!org.groups.length){
+    body.innerHTML='<div style="color:var(--mut);font-size:12px;padding:8px;">אין קבוצות מוגדרות באפליקציית השיבוצים</div>';
+    om('importOrgModal');return;
+  }
+
+  org.groups.forEach(function(g){
+    var gExists=D.groups.find(function(x){return x.id===g.id;});
+    var gDiv=document.createElement('div');
+    gDiv.style.cssText='margin-bottom:8px;border:1px solid var(--brd);border-radius:var(--r);overflow:hidden;';
+
+    // שורת קבוצה
+    var gHdr=document.createElement('div');
+    gHdr.style.cssText='display:flex;align-items:center;gap:8px;padding:7px 10px;background:'+(g.color?g.color+'22':'#E4E2DB')+';';
+    var gDot=document.createElement('div');
+    gDot.style.cssText='width:10px;height:10px;border-radius:50%;background:'+(g.color||'#888')+';flex-shrink:0;';
+    var gName=document.createElement('span');
+    gName.style.cssText='font-size:12px;font-weight:700;flex:1;';
+    gName.textContent=g.name;
+    var gBtn=document.createElement('button');
+    gBtn.className='btn btn-sm';
+    gBtn.style.cssText='font-size:10px;padding:2px 8px;';
+    if(gExists){gBtn.textContent='קיים';gBtn.disabled=true;gBtn.style.color='var(--mut)';}
+    else{
+      gBtn.textContent='+ הוסף';
+      gBtn.onclick=(function(grp){return function(){
+        snapshot();
+        D.groups.push(JSON.parse(JSON.stringify(grp)));
+        if(D.nextGid<=grp.id) D.nextGid=grp.id+1;
+        saveData();render();openImportOrgModal();
+      };})(g);
+    }
+    gHdr.appendChild(gDot);gHdr.appendChild(gName);gHdr.appendChild(gBtn);
+    gDiv.appendChild(gHdr);
+
+    // צוותות בקבוצה
+    (org.teams||[]).filter(function(t){return t.gid===g.id;}).forEach(function(t){
+      var tExists=D.teams.find(function(x){return x.id===t.id;});
+      var tRow=document.createElement('div');
+      tRow.style.cssText='display:flex;align-items:center;gap:8px;padding:5px 10px 5px 20px;border-top:1px solid var(--brd);background:#F0EEE8;';
+      var tName=document.createElement('span');tName.style.cssText='font-size:11px;font-weight:600;flex:1;'+(tExists?'color:var(--mut);':'');
+      tName.textContent=t.name+(tExists?' (קיים)':'');
+      var tBtn=document.createElement('button');tBtn.className='btn btn-sm';tBtn.style.cssText='font-size:10px;padding:2px 8px;';
+      if(tExists){tBtn.textContent='קיים';tBtn.disabled=true;tBtn.style.color='var(--mut)';}
+      else{
+        tBtn.textContent='+ הוסף';
+        tBtn.onclick=(function(team){return function(){
+          snapshot();
+          if(!D.groups.find(function(x){return x.id===team.gid;})){
+            var pg=org.groups.find(function(x){return x.id===team.gid;});
+            if(pg){D.groups.push(JSON.parse(JSON.stringify(pg)));if(D.nextGid<=pg.id)D.nextGid=pg.id+1;}
+          }
+          D.teams.push(JSON.parse(JSON.stringify(team)));
+          if(D.nextTmid<=team.id)D.nextTmid=team.id+1;
+          saveData();render();openImportOrgModal();
+        };})(t);
+      }
+      tRow.appendChild(tName);tRow.appendChild(tBtn);
+      gDiv.appendChild(tRow);
+
+      // עובדים בצוות
+      (org.workers||[]).filter(function(w){return w.team===t.id;}).forEach(function(w){
+        gDiv.appendChild(_buildWorkerRow(w,org));
+      });
+    });
+
+    // עובדים ישירות בקבוצה
+    (org.workers||[]).filter(function(w){return w.group===g.id&&!w.team;}).forEach(function(w){
+      gDiv.appendChild(_buildWorkerRow(w,org));
+    });
+
+    body.appendChild(gDiv);
+  });
+
+  // כפתור הוסף עובד חדש
+  var newWBtn=document.createElement('button');
+  newWBtn.className='btn';newWBtn.style.cssText='width:100%;margin-top:8px;';
+  newWBtn.textContent='+ הוסף עובד חדש לתוכנית בלבד';
+  newWBtn.onclick=function(){cm('importOrgModal');openWorkerModal(null,null);};
+  body.appendChild(newWBtn);
+  om('importOrgModal');
+}
+window.openImportOrgModal=openImportOrgModal;
+
+function _buildWorkerRow(w,org){
+  var wExists=D.workers.find(function(x){return x.id===w.id;});
+  var wDiv=document.createElement('div');
+  wDiv.style.cssText='display:flex;align-items:center;gap:8px;padding:4px 10px 4px 30px;border-top:1px solid var(--brd);background:#fff;';
+  var dot=document.createElement('div');dot.style.cssText='width:8px;height:8px;border-radius:50%;background:'+(w.color||'#999')+';flex-shrink:0;';
+  var nm=document.createElement('span');nm.style.cssText='font-size:11px;flex:1;'+(wExists?'color:var(--mut);':'');
+  nm.textContent=w.name+(wExists?' (קיים)':'');
+  var wBtn=document.createElement('button');wBtn.className='btn btn-sm';wBtn.style.cssText='font-size:10px;padding:2px 8px;';
+  if(wExists){wBtn.textContent='קיים';wBtn.disabled=true;wBtn.style.color='var(--mut)';}
+  else{
+    wBtn.textContent='+ הוסף';
+    wBtn.onclick=(function(worker){return function(){
+      snapshot();
+      // הוסף קבוצה/צוות אם חסרים
+      if(worker.group&&!D.groups.find(function(x){return x.id===worker.group;})){
+        var pg=org.groups.find(function(x){return x.id===worker.group;});
+        if(pg){D.groups.push(JSON.parse(JSON.stringify(pg)));if(D.nextGid<=pg.id)D.nextGid=pg.id+1;}
+      }
+      if(worker.team&&!D.teams.find(function(x){return x.id===worker.team;})){
+        var pt=org.teams.find(function(x){return x.id===worker.team;});
+        if(pt){D.teams.push(JSON.parse(JSON.stringify(pt)));if(D.nextTmid<=pt.id)D.nextTmid=pt.id+1;}
+      }
+      // עובד בplanner: המר מבנה gantt לmבנה planner
+      var planWorker={
+        id:worker.id,name:worker.name,color:worker.color,
+        globalId:worker.globalId,
+        gid:worker.group,tid:worker.team
+      };
+      D.workers.push(planWorker);
+      if(D.nextWid<=worker.id)D.nextWid=worker.id+1;
+      saveData();render();openImportOrgModal();
+    };})(w);
+  }
+  wDiv.appendChild(dot);wDiv.appendChild(nm);wDiv.appendChild(wBtn);
+  return wDiv;
+}
 
 window.cm=cm;
 window.om=om;
