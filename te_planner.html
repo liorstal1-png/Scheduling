@@ -1461,20 +1461,23 @@ function startDepDrag(e,dot){
     document.removeEventListener('mousemove',onMove);
     document.removeEventListener('mouseup',onUp);
     _depDraft=null;
-    // מצא יעד — רק dep-dot-r (start) כיעד
+    // מצא יעד — כל dep-dot חוץ מהמקור
     var found=null;
-    document.querySelectorAll('.dep-dot-r').forEach(function(d){
+    document.querySelectorAll('.dep-dot').forEach(function(d){
       if(+d.dataset.tid===fromTid)return;
       var dr=d.getBoundingClientRect();
       var cx=dr.left+dr.width/2,cy=dr.top+dr.height/2;
       if(Math.sqrt((cx-e.clientX)*(cx-e.clientX)+(cy-e.clientY)*(cy-e.clientY))<20)found=d;
     });
-    // fallback: snap to block — תמיד to=start
+    // fallback: snap to block — בדוק איזה צד
     if(!found){
       var el=document.elementFromPoint(e.clientX,e.clientY);
       while(el&&el!==document.body){
         if(el.classList&&el.classList.contains('blk')&&+el.dataset.tid!==fromTid){
-          found={dataset:{tid:el.dataset.tid,side:'start'}};break;
+          // RTL: ימין=start, שמאל=end. בדוק לפי מיקום עכבר
+          var br=el.getBoundingClientRect();
+          var side=e.clientX>=(br.left+br.right)/2?'start':'end';
+          found={dataset:{tid:el.dataset.tid,side:side}};break;
         }
         el=el.parentElement;
       }
@@ -1482,7 +1485,11 @@ function startDepDrag(e,dot){
     if(found){
       var toTid=+found.dataset.tid;
       var toSide=found.dataset.side||'start';
-      if(toSide==='start'&&!D.deps.find(function(d){return d.fromTid===fromTid&&d.toTid===toTid;})){
+      if(toSide==='end'){
+        toast('⚠️ לא ניתן להגדיר תלות של סיום משימה לסיום משימה');
+        redrawDeps();return;
+      }
+      if(!D.deps.find(function(d){return d.fromTid===fromTid&&d.toTid===toTid;})){
         snapshot();
         D.deps.push({id:D.nextDid++,fromTid:fromTid,fromSide:'end',toTid:toTid,toSide:'start'});
         render();toast('תלות נוספה ✓');
