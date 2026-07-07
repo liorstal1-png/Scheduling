@@ -282,6 +282,15 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <button class="btn btn-sm" id="selCancelBtn">✕</button>
 </div>
 
+<!-- Import from gantt modal -->
+<div class="ov" id="importOrgModal" onclick="if(event.target===this)cm('importOrgModal')">
+  <div class="modal" style="max-width:380px;">
+    <div class="mhdr"><span class="mtitle">הוסף לתוכנית</span><button class="mx" onclick="cm('importOrgModal')">✕</button></div>
+    <div class="mbody" id="iom-body" style="max-height:60vh;overflow-y:auto;"></div>
+    <div class="mfoot"><button class="btn" onclick="cm('importOrgModal')">סגור</button></div>
+  </div>
+</div>
+
 <!-- Group modal -->
 <div class="ov" id="gmodal" onclick="if(event.target===this)cm('gmodal')">
   <div class="modal">

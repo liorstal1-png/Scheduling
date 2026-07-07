@@ -380,13 +380,13 @@ body:not(.edit-mode) .edit-only{display:none!important;}
     <div class="tp-legend-row"><div style="width:28px;height:10px;border-radius:3px;background:#378ADD;opacity:.4;"></div><span>משימת תוכנית</span></div>
     <div class="tp-legend-row"><div style="width:28px;height:10px;border-radius:3px;background:#E24B4A;opacity:.4;outline:2px solid #E24B4A;"></div><span>התנגשות עם שיבוץ</span></div>
   </div>
-  <div style="padding:8px;border-top:1px solid rgba(255,255,255,.15);margin-top:4px;">
-    <div style="font-size:10px;color:rgba(255,255,255,.6);margin-bottom:4px;">שעות עבודה לשבוע לעובד</div>
+  <div style="padding:8px;border-top:1px solid var(--brd);flex-shrink:0;background:var(--bg);">
+    <div style="font-size:10px;color:var(--mut);margin-bottom:4px;font-weight:600;">שעות עבודה לשבוע לעובד</div>
     <div style="display:flex;align-items:center;gap:6px;">
       <input type="number" id="tp-hours-week" min="1" max="80" value="42"
-        style="width:56px;padding:4px 6px;border:1px solid rgba(255,255,255,.3);border-radius:4px;background:rgba(255,255,255,.1);color:#fff;font-family:Heebo,sans-serif;font-size:12px;text-align:center;"
+        style="width:56px;padding:4px 6px;border:1px solid var(--brd);border-radius:4px;background:#fff;color:var(--txt);font-family:Heebo,sans-serif;font-size:12px;text-align:center;"
         onchange="saveTPHoursPerWeek(this.value)"/>
-      <span style="font-size:11px;color:rgba(255,255,255,.6);">שעות / שבוע</span>
+      <span style="font-size:11px;color:var(--mut);">שעות / שבוע</span>
     </div>
   </div>
 </div>
@@ -4084,9 +4084,14 @@ function buildTPPanel(){
     var chk = document.createElement('div');
     chk.className = 'tp-check';
     chk.textContent = _tpActive.has(proj.key) ? '✓' : '';
+    var chkWrap = document.createElement('div');
+    chkWrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:1px;flex-shrink:0;';
+    var chkLbl = document.createElement('div');
+    chkLbl.style.cssText='font-size:9px;color:var(--mut);';
+    chkLbl.textContent='הצג';
+    chkWrap.appendChild(chk);chkWrap.appendChild(chkLbl);
     var dot = document.createElement('div');
     dot.className = 'tp-dot';
-    // pick a color from worker list or fallback
     var firstWorker = proj.data.workers && proj.data.workers[0];
     dot.style.background = (firstWorker && firstWorker.color) ? firstWorker.color : '#378ADD';
     var nm = document.createElement('div');
@@ -4098,17 +4103,32 @@ function buildTPPanel(){
     var taskCount = (proj.data.tasks || []).length;
     badge.textContent = taskCount + ' משימות';
 
-    item.appendChild(chk);
+    // כפתור פתח
+    var openBtn = document.createElement('button');
+    openBtn.textContent = 'פתח';
+    openBtn.title = 'פתח תוכנית עבודה';
+    openBtn.style.cssText = 'background:none;border:1px solid var(--acc);border-radius:4px;cursor:pointer;font-size:10px;color:var(--acc);padding:2px 6px;flex-shrink:0;font-family:Heebo,sans-serif;';
+    openBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var pid = proj.key.replace('te_proj_','');
+      sessionStorage.setItem('te_active_pid', pid);
+      sessionStorage.setItem('te_active_pname', proj.name);
+      window.open('./te_planner.html?pid='+pid, '_blank');
+    });
+
+    item.appendChild(chkWrap);
     item.appendChild(dot);
     item.appendChild(nm);
     item.appendChild(badge);
+    item.appendChild(openBtn);
 
     (function(pk){
-      item.addEventListener('click', function(){
+      item.addEventListener('click', function(e){
+        if(e.target===openBtn||openBtn.contains(e.target))return;
         if(_tpActive.has(pk)) _tpActive.delete(pk);
         else _tpActive.add(pk);
         buildTPPanel();
-        render(); // re-render to add/remove overlays
+        render();
       });
     })(proj.key);
 
