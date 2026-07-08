@@ -30,10 +30,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .sidebar-body{flex:1;overflow-y:auto;overflow-x:hidden;}
 .sidebar-body::-webkit-scrollbar{width:4px;}
 .sidebar-body::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px;}
-.resize-handle{width:10px;cursor:col-resize;background:transparent;flex-shrink:0;transition:background .15s;position:relative;}
-.resize-handle::after{content:'';position:absolute;top:0;bottom:0;left:4px;width:2px;background:var(--brd);border-radius:1px;}
-.resize-handle:hover::after,.resize-handle.dragging::after{background:var(--acc);}
-.resize-handle:hover,.resize-handle.dragging{background:rgba(55,138,221,.08);}
+.resize-handle{width:16px;cursor:col-resize;background:var(--bg);flex-shrink:0;transition:background .15s;position:relative;border-right:1px solid var(--brd);border-left:1px solid var(--brd);}
+.resize-handle::after{content:'⋮';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--fnt);font-size:14px;line-height:1;}
+.resize-handle:hover,.resize-handle.dragging{background:var(--acc);color:#fff;}
+.resize-handle:hover::after,.resize-handle.dragging::after{color:#fff;}
 .resize-handle:hover,.resize-handle.dragging{background:var(--acc);border-color:var(--acc);}
 /* tree */
 .tree-group-hdr{height:28px;min-height:28px;display:flex;align-items:center;padding:0 6px 0 8px;gap:4px;background:#E4E2DB;border-bottom:1px solid #ccc;cursor:pointer;user-select:none;flex-shrink:0;}
@@ -259,7 +259,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <div class="sidebar" id="sidebar">
     <div class="sidebar-hdr">
       <span>צוותים / עובדים</span>
-      <button class="btn btn-sm" id="addGroupBtn">+ קבוצה</button>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+        <button class="btn btn-sm" id="addGroupBtn">+ קבוצה</button>
+        <button class="btn btn-sm" id="toggleTeamsBtn" onclick="toggleTeamsVisible()" style="font-size:10px;">🙈 הסתר ראשי צוותים</button>
+      </div>
     </div>
     <div class="sidebar-body" id="sidebarBody"></div>
   </div>
@@ -480,6 +483,14 @@ var D={groups:[],teams:[],workers:[],tasks:[],sprints:[],milestones:[],deps:[],n
 var ZL=100, TL_WEEKS=24, MODE_WEEKS=false;
 var TODAY=new Date(); TODAY.setHours(12,0,0,0);
 var TL_START=sundayBefore(TODAY);
+var _hideTeams=false;
+function toggleTeamsVisible(){
+  _hideTeams=!_hideTeams;
+  var btn=document.getElementById('toggleTeamsBtn');
+  if(btn) btn.textContent=_hideTeams?'👁 הצג ראשי צוותים':'🙈 הסתר ראשי צוותים';
+  render();
+}
+
 var collapsed={groups:{},teams:{}};
 function safeCollapsed(){if(!collapsed)collapsed={};if(!collapsed.groups)collapsed.groups={};if(!collapsed.teams)collapsed.teams={};}
 var selectedTids=new Set();
@@ -618,8 +629,8 @@ function getRows(){
     rows.push({type:'group',obj:g});
     if(collapsed.groups[g.id])return;
     D.teams.filter(function(t){return String(t.gid)===String(g.id);}).forEach(function(t){
-      rows.push({type:'team',obj:t});
-      if(collapsed.teams[t.id])return;
+      if(!_hideTeams) rows.push({type:'team',obj:t});
+      if(collapsed.teams[t.id]&&!_hideTeams)return;
       D.workers.filter(function(w){return String(w.tid)===String(t.id);}).forEach(function(w){
         rows.push({type:'worker',obj:w});
         shown[w.id]=true;
@@ -663,12 +674,7 @@ function renderSidebar(){
         lbl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();lbl.blur();}e.stopPropagation();});
         lbl.addEventListener('blur',function(){var v=lbl.textContent.trim();if(v)g.name=v;saveData();});
         addBtn.addEventListener('click',function(e){e.stopPropagation();openTeamModal(null,g.id);});
-        (function(gid){addWBtn.addEventListener('click',function(e){e.stopPropagation();
-          // find first team in group or null
-          var firstTeam=D.teams.find(function(t){return t.gid===gid;});
-          // pass gid as negative number to distinguish from tid
-          openWorkerModal(null,firstTeam?firstTeam.id:-gid);
-        });})(g.id);
+        (function(gid){addWBtn.addEventListener('click',function(e){e.stopPropagation();openImportOrgModal();});})(g.id);
         // edit button
         var eBtn=document.createElement('button');eBtn.className='row-del';eBtn.textContent='✏️';eBtn.title='ערוך קבוצה';
         el.insertBefore(eBtn,del);
@@ -688,7 +694,7 @@ function renderSidebar(){
         lbl.addEventListener('click',function(e){e.stopPropagation();});
         lbl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();lbl.blur();}e.stopPropagation();});
         lbl.addEventListener('blur',function(){var v=lbl.textContent.trim();if(v)t.name=v;saveData();});
-        addBtn.addEventListener('click',function(e){e.stopPropagation();openWorkerModal(null,t.id);});
+        addBtn.addEventListener('click',function(e){e.stopPropagation();openImportOrgModal();});
         // edit button
         var eBtn=document.createElement('button');eBtn.className='row-del';eBtn.textContent='✏️';eBtn.title='ערוך צוות';
         el.insertBefore(eBtn,del);
@@ -2277,18 +2283,20 @@ function openImportOrgModal(){
       tRow.appendChild(tName);tRow.appendChild(tBtn);
       gDiv.appendChild(tRow);
 
-      // עובדים בצוות זה — עם גוונים שונים
+      // עובדים בצוות זה — עם גוונים ייחודיים
       var tWorkers=(org.workers||[]).filter(function(w){return w.team===t.id;});
+      var totalW=tWorkers.length;
       tWorkers.forEach(function(w,wi){
-        var shade=wi%2===0?lighten(gColor,0.25):darken(gColor,0.15);
+        var shade=totalW<=1?gColor:(wi%2===0?lighten(gColor,0.15+wi*0.08):darken(gColor,0.1+wi*0.05));
         gDiv.appendChild(_buildWorkerRow(w,org,g,gColor,shade));
       });
     });
 
     // עובדים ישירות בקבוצה (ללא צוות) — עם גוונים
     var directWorkers=(org.workers||[]).filter(function(w){return w.group===g.id&&(!w.team||!teamsInGroup.find(function(t){return t.id===w.team;}));});
+    var totalDW=directWorkers.length;
     directWorkers.forEach(function(w,wi){
-      var shade=wi%2===0?lighten(gColor,0.25):darken(gColor,0.15);
+      var shade=totalDW<=1?gColor:(wi%2===0?lighten(gColor,0.15+wi*0.08):darken(gColor,0.1+wi*0.05));
       gDiv.appendChild(_buildWorkerRow(w,org,g,gColor,shade));
     });
 
