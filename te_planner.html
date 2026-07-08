@@ -30,7 +30,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .sidebar-body{flex:1;overflow-y:auto;overflow-x:hidden;}
 .sidebar-body::-webkit-scrollbar{width:4px;}
 .sidebar-body::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px;}
-.resize-handle{width:10px;cursor:col-resize;background:transparent;flex-shrink:0;border-right:2px solid var(--brd);}
+.resize-handle{width:10px;cursor:col-resize;background:transparent;flex-shrink:0;transition:background .15s;position:relative;}
+.resize-handle::after{content:'';position:absolute;top:0;bottom:0;left:4px;width:2px;background:var(--brd);border-radius:1px;}
+.resize-handle:hover::after,.resize-handle.dragging::after{background:var(--acc);}
+.resize-handle:hover,.resize-handle.dragging{background:rgba(55,138,221,.08);}
 .resize-handle:hover,.resize-handle.dragging{background:var(--acc);border-color:var(--acc);}
 /* tree */
 .tree-group-hdr{height:28px;min-height:28px;display:flex;align-items:center;padding:0 6px 0 8px;gap:4px;background:#E4E2DB;border-bottom:1px solid #ccc;cursor:pointer;user-select:none;flex-shrink:0;}
@@ -55,7 +58,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .tlwrap::-webkit-scrollbar-thumb{background:var(--brd);border-radius:5px;}
 .tlwrap::-webkit-scrollbar-thumb:hover{background:var(--mut);}
 .tlwrap::-webkit-scrollbar-track{background:var(--bg);}
-.tlinner{display:block;position:relative;direction:rtl;}
+.tlinner{display:block;min-width:100%;position:relative;direction:rtl;}
 .tl-hdr{position:sticky;top:0;z-index:15;background:var(--sur);}
 .sprrow{display:flex;border-bottom:1px solid var(--brd);background:var(--bg);direction:rtl;height:34px;}
 .spr-empty{flex-shrink:0;height:34px;}
@@ -2264,7 +2267,9 @@ function openImportOrgModal(){
             var gc=JSON.parse(JSON.stringify(grp));gc.color=col;
             D.groups.push(gc);if(D.nextGid<=grp.id)D.nextGid=grp.id+1;
           }
-          D.teams.push(JSON.parse(JSON.stringify(team)));
+          var tCopy=JSON.parse(JSON.stringify(team));
+          if(!tCopy.gid) tCopy.gid=g.id; // בגנט אין gid לצוות — קח מהקבוצה
+          D.teams.push(tCopy);
           if(D.nextTmid<=team.id)D.nextTmid=team.id+1;
           saveData();render();openImportOrgModal();
         };})(t,g,gColor);
@@ -2315,10 +2320,16 @@ function _buildWorkerRow(w,org,grp,gColor){
         var pg=org.groups.find(function(x){return x.id===worker.group;});
         if(pg){var gc=JSON.parse(JSON.stringify(pg));gc.color=col;D.groups.push(gc);if(D.nextGid<=pg.id)D.nextGid=pg.id+1;}
       }
-      // הוסף צוות אם חסר
+      // הוסף צוות אם חסר — עם gid נכון
       if(worker.team&&!D.teams.find(function(x){return x.id===worker.team;})){
         var pt=org.teams.find(function(x){return x.id===worker.team;});
-        if(pt){D.teams.push(JSON.parse(JSON.stringify(pt)));if(D.nextTmid<=pt.id)D.nextTmid=pt.id+1;}
+        if(pt){
+          var ptCopy=JSON.parse(JSON.stringify(pt));
+          // בגנט לצוות אין gid — נחשב מהעובד
+          if(!ptCopy.gid) ptCopy.gid=worker.group;
+          D.teams.push(ptCopy);
+          if(D.nextTmid<=pt.id)D.nextTmid=pt.id+1;
+        }
       }
       // עובד בplanner
       var planWorker={
