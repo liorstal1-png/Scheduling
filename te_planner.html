@@ -55,7 +55,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .tlwrap::-webkit-scrollbar-thumb{background:var(--brd);border-radius:5px;}
 .tlwrap::-webkit-scrollbar-thumb:hover{background:var(--mut);}
 .tlwrap::-webkit-scrollbar-track{background:var(--bg);}
-.tlinner{display:inline-block;min-width:100%;position:relative;direction:rtl;}
+.tlinner{display:block;position:relative;direction:rtl;}
 .tl-hdr{position:sticky;top:0;z-index:15;background:var(--sur);}
 .sprrow{display:flex;border-bottom:1px solid var(--brd);background:var(--bg);direction:rtl;height:34px;}
 .spr-empty{flex-shrink:0;height:34px;}
@@ -602,30 +602,30 @@ function getRows(){
   safeCollapsed();
   var rows=[];
   var shown={};
-  // First pass: claim all workers that belong to a group
   var claimed={};
+  // First pass: claim workers
   D.groups.forEach(function(g){
-    D.workers.filter(function(w){return +w.gid===+g.id;}).forEach(function(w){claimed[w.id]=true;});
-    D.teams.filter(function(t){return +t.gid===+g.id;}).forEach(function(t){
-      D.workers.filter(function(w){return +w.tid===+t.id;}).forEach(function(w){claimed[w.id]=true;});
+    D.workers.filter(function(w){return String(w.gid)===String(g.id);}).forEach(function(w){claimed[w.id]=true;});
+    D.teams.filter(function(t){return String(t.gid)===String(g.id);}).forEach(function(t){
+      D.workers.filter(function(w){return String(w.tid)===String(t.id);}).forEach(function(w){claimed[w.id]=true;});
     });
   });
   // Second pass: build rows
   D.groups.forEach(function(g){
     rows.push({type:'group',obj:g});
     if(collapsed.groups[g.id])return;
-    D.teams.filter(function(t){return +t.gid===+g.id;}).forEach(function(t){
+    D.teams.filter(function(t){return String(t.gid)===String(g.id);}).forEach(function(t){
       rows.push({type:'team',obj:t});
       if(collapsed.teams[t.id])return;
-      D.workers.filter(function(w){return +w.tid===+t.id;}).forEach(function(w){
+      D.workers.filter(function(w){return String(w.tid)===String(t.id);}).forEach(function(w){
         rows.push({type:'worker',obj:w});
         shown[w.id]=true;
       });
     });
-    // direct workers in group (no team, or team not in this group)
+    // direct workers in group (no team)
     D.workers.filter(function(w){
-      if(shown[w.id])return false; // already added via team
-      if(+w.gid!==+g.id)return false;
+      if(shown[w.id])return false;
+      if(String(w.gid)!==String(g.id))return false;
       return true;
     }).forEach(function(w){
       rows.push({type:'worker',obj:w});
@@ -2213,7 +2213,9 @@ function openImportOrgModal(){
     var gExists=D.groups.find(function(x){return x.id===g.id;});
     // צבע קבוצה — מהעובד הראשון בקבוצה
     var gWorkers=(org.workers||[]).filter(function(w){return w.group===g.id;});
-    var gColor=(gWorkers[0]&&gWorkers[0].color)?gWorkers[0].color:'#888';
+    var gIdx=org.groups.indexOf(g);
+    var GROUP_COLS=['#378ADD','#1D9E75','#D85A30','#9B59B6','#D4AC0D','#E91E8C'];
+    var gColor=(gWorkers[0]&&gWorkers[0].color)?gWorkers[0].color:GROUP_COLS[gIdx%GROUP_COLS.length];
     
     var gDiv=document.createElement('div');
     gDiv.style.cssText='margin-bottom:8px;border:1px solid var(--brd);border-radius:var(--r);overflow:hidden;';
