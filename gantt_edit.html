@@ -33,8 +33,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .main{display:flex;flex:1;overflow:hidden;min-height:0;direction:rtl;}
 
 /* project panel — rightmost in RTL = leftmost in LTR flex */
-.resize-handle{width:10px;cursor:col-resize;background:transparent;flex-shrink:0;transition:background .15s;position:relative;}
-.resize-handle::after{content:'';position:absolute;top:0;bottom:0;left:4px;width:2px;background:var(--brd);border-radius:1px;}
+.resize-handle{width:16px;cursor:col-resize;background:transparent;flex-shrink:0;transition:background .15s;position:relative;}
+.resize-handle::after{content:'';position:absolute;top:0;bottom:0;left:7px;width:2px;background:var(--brd);border-radius:1px;}
 .resize-handle:hover::after,.resize-handle.dragging::after{background:var(--accent,#378ADD);}
 .resize-handle:hover,.resize-handle.dragging{background:rgba(55,138,221,.08);}
 .ppanel{width:200px;min-width:80px;flex-shrink:0;background:var(--sur);border-left:2px solid var(--brd);display:flex;flex-direction:column;direction:rtl;overflow:hidden;}
