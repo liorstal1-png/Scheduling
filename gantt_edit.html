@@ -244,12 +244,14 @@ body:not(.edit-mode) .edit-only{display:none!important;}
     // רשימה חיה — מתעדכנת אוטומטית כשנוצרת/נמחקת/משתנה תוכנית בכל טאב/מכשיר
     window._tpProjectsRemote = [];
     window._tpProjectsRemoteReady = false;
+    var _tpPrevIds = null;
     onSnapshot(TE_PROJECTS_COL, function(snap){
-      var list=[];
+      var list=[]; var currentIds={};
       snap.forEach(function(d){
         try{
           var payload=JSON.parse(d.data().payload);
           var key='te_proj_'+d.id;
+          currentIds[d.id]=true;
           list.push({
             key:key, pid:d.id,
             name:(payload.meta&&payload.meta.name)||'(ללא שם)',
@@ -260,6 +262,17 @@ body:not(.edit-mode) .edit-only{display:none!important;}
           try{ localStorage.setItem(key, JSON.stringify(payload)); }catch(e){}
         }catch(e){}
       });
+      // נקה מטמון מקומי של תוכניות שנמחקו ב-Firebase (מונע "חזרה לחיים" של תוכנית שנמחקה
+      // בטאב/מכשיר אחר) — רק לתוכניות שכבר ראינו קודם דרך Firebase, כדי לא למחוק
+      // בטעות תוכנית מקומית שעדיין לא הספיקה להסתנכרן.
+      if(_tpPrevIds){
+        Object.keys(_tpPrevIds).forEach(function(pid){
+          if(!currentIds[pid]){
+            try{ localStorage.removeItem('te_proj_'+pid); }catch(e){}
+          }
+        });
+      }
+      _tpPrevIds = currentIds;
       window._tpProjectsRemote = list;
       window._tpProjectsRemoteReady = true;
       if(typeof window._onTPProjectsUpdate === 'function') window._onTPProjectsUpdate(list);
@@ -4168,15 +4181,26 @@ function buildTPPanel(){
       window.open('./te_planner.html?pid='+pid, '_blank');
     });
 
+    // כפתור מחק — מוחק גם מקומית וגם מ-Firebase, בכל מקום שהתוכנית מוצגת
+    var delBtn = document.createElement('button');
+    delBtn.textContent = '🗑';
+    delBtn.title = 'מחק תוכנית עבודה';
+    delBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:12px;color:#E24B4A;padding:2px 4px;flex-shrink:0;';
+    delBtn.addEventListener('click', function(e){
+      e.stopPropagation();
+      deleteTPProject(proj);
+    });
+
     item.appendChild(chkWrap);
     item.appendChild(dot);
     item.appendChild(nm);
     item.appendChild(badge);
     item.appendChild(openBtn);
+    item.appendChild(delBtn);
 
     (function(pk){
       item.addEventListener('click', function(e){
-        if(e.target===openBtn||openBtn.contains(e.target))return;
+        if(e.target===openBtn||openBtn.contains(e.target)||e.target===delBtn||delBtn.contains(e.target))return;
         if(_tpActive.has(pk)) _tpActive.delete(pk);
         else _tpActive.add(pk);
         buildTPPanel();
@@ -4186,6 +4210,16 @@ function buildTPPanel(){
 
     body.appendChild(item);
   });
+}
+
+function deleteTPProject(proj){
+  if(!confirm('למחוק את תוכנית העבודה "'+proj.name+'"?\nהמחיקה תסיר אותה גם מהמכשירים/הטאבים האחרים ולא ניתן לשחזר.'))return;
+  try{ localStorage.removeItem(proj.key); }catch(e){}
+  if(window._fbDeleteProject) window._fbDeleteProject(proj.pid);
+  _tpActive.delete(proj.key);
+  buildTPPanel();
+  if(typeof render==='function') render();
+  toast('תוכנית העבודה נמחקה');
 }
 
 // Call this from render() to draw overlays after rows are built

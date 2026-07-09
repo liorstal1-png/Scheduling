@@ -46,6 +46,59 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .fld input[type=number]{direction:ltr;text-align:right;}
 .section-title{font-size:11px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--brd);}
 </style>
+<!-- Firebase — אותו מקור נתונים כמו gantt_edit.html ו-te_planner.html -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDOIwsCqDyivx8kdCUQHEVPTWFYFfB-yFw",
+    authDomain: "scheduling-a5647.firebaseapp.com",
+    projectId: "scheduling-a5647",
+    storageBucket: "scheduling-a5647.firebasestorage.app",
+    messagingSenderId: "1086458270592",
+    appId: "1:1086458270592:web:1dff903b00ed4e62426765"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const TE_PROJECTS_COL = collection(db, 'te_projects');
+
+  window._fbSaveProject = function(pid, projObj) {
+    setDoc(doc(db, 'te_projects', pid), { payload: JSON.stringify(projObj) })
+      .catch(function(e){ console.error('FB save te_project error:', e); });
+  };
+  window._fbDeleteProject = function(pid) {
+    deleteDoc(doc(db, 'te_projects', pid))
+      .catch(function(e){ console.error('FB delete te_project error:', e); });
+  };
+
+  // רשימה חיה מ-Firebase — מקור האמת. מסונכרן עם אותו מנגנון כמו בשיבוץ,
+  // כולל ניקוי מטמון מקומי לתוכניות שנמחקו במקום אחר (מונע "חזרה לחיים").
+  window._tpProjectsRemote = [];
+  window._tpProjectsRemoteReady = false;
+  var _tpPrevIds = null;
+  onSnapshot(TE_PROJECTS_COL, function(snap){
+    var list=[]; var currentIds={};
+    snap.forEach(function(d){
+      try{
+        var payload=JSON.parse(d.data().payload);
+        var key='te_proj_'+d.id;
+        currentIds[d.id]=true;
+        list.push({key:key,pid:d.id,meta:payload.meta||{},data:payload.data||null});
+        try{ localStorage.setItem(key, JSON.stringify(payload)); }catch(e){}
+      }catch(e){}
+    });
+    if(_tpPrevIds){
+      Object.keys(_tpPrevIds).forEach(function(pid){
+        if(!currentIds[pid]){ try{ localStorage.removeItem('te_proj_'+pid); }catch(e){} }
+      });
+    }
+    _tpPrevIds = currentIds;
+    window._tpProjectsRemote = list;
+    window._tpProjectsRemoteReady = true;
+    if(typeof window.renderGrid === 'function') window.renderGrid();
+  }, function(err){ console.error('FB te_projects listen error:', err); });
+</script>
 </head>
 <body>
 <div id="projCtxMenu" style="position:fixed;background:#fff;border:1px solid var(--brd,#E0DED8);border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:300;min-width:160px;padding:4px 0;display:none;direction:rtl;">
@@ -161,28 +214,38 @@ var _editId=null;
 
 // ── Storage ────────────────────────────────────────────────────────────────
 function listProjects(){
-  var list=[];
+  var byId = {};
+  // Firebase (רשימה חיה) הוא מקור האמת — תופס גם תוכניות שנוצרו/נערכו במכשיר/טאב אחר
+  (window._tpProjectsRemote||[]).forEach(function(p){
+    if(p.meta&&typeof p.meta.id==='string'&&p.meta.id.indexOf('[')<0) byId[p.meta.id]=p.meta;
+  });
+  // מטמון מקומי — גיבוי offline לתוכניות שעדיין לא הספיקו להסתנכרן
   for(var i=0;i<localStorage.length;i++){
     var k=localStorage.key(i);
     if(k&&k.indexOf(PREFIX)===0){
       try{
         var p=JSON.parse(localStorage.getItem(k));
-        // skip corrupted entries where id is not a simple string
-        if(p&&p.meta&&typeof p.meta.id==='string'&&p.meta.id.indexOf('[')<0){
-          list.push(p.meta);
+        if(p&&p.meta&&typeof p.meta.id==='string'&&p.meta.id.indexOf('[')<0&&!byId[p.meta.id]){
+          byId[p.meta.id]=p.meta;
         }
       }catch(e){}
     }
   }
+  var list=Object.keys(byId).map(function(id){return byId[id];});
   list.sort(function(a,b){return (b.updatedAt||0)-(a.updatedAt||0);});
   return list;
 }
 function loadProject(id){try{return JSON.parse(localStorage.getItem(PREFIX+id));}catch(e){return null;}}
 function saveProject(id,meta,data){
   meta.updatedAt=Date.now();
-  localStorage.setItem(PREFIX+id,JSON.stringify({meta:meta,data:data}));
+  var obj={meta:meta,data:data};
+  localStorage.setItem(PREFIX+id,JSON.stringify(obj));
+  if(window._fbSaveProject) window._fbSaveProject(id,obj);
 }
-function deleteProject(id){localStorage.removeItem(PREFIX+id);}
+function deleteProject(id){
+  localStorage.removeItem(PREFIX+id);
+  if(window._fbDeleteProject) window._fbDeleteProject(id);
+}
 
 function getSprintConfig(){
   try{var s=localStorage.getItem('te_sprint_config');if(s)return JSON.parse(s);}catch(e){}
