@@ -214,7 +214,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
   <!-- Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDOIwsCqDyivx8kdCUQHEVPTWFYFfB-yFw",
@@ -229,6 +229,41 @@ body:not(.edit-mode) .edit-only{display:none!important;}
     const db = getFirestore(app);
     const DOC_REF = doc(db, 'gantt', 'data');
     const NOTES_REF = doc(db, 'gantt', 'notes');
+    const TE_PROJECTS_COL = collection(db, 'te_projects');
+
+    // ── תוכניות עבודה (te_projects) — שמירה/מחיקה/רשימה חיה מ-Firestore ──
+    // זה מקור האמת החוצה-מכשירים/טאבים לפאנל "תוכניות עבודה" בשיבוץ.
+    window._fbSaveProject = function(pid, projObj) {
+      setDoc(doc(db, 'te_projects', pid), { payload: JSON.stringify(projObj) })
+        .catch(function(e){ console.error('FB save te_project error:', e); });
+    };
+    window._fbDeleteProject = function(pid) {
+      deleteDoc(doc(db, 'te_projects', pid))
+        .catch(function(e){ console.error('FB delete te_project error:', e); });
+    };
+    // רשימה חיה — מתעדכנת אוטומטית כשנוצרת/נמחקת/משתנה תוכנית בכל טאב/מכשיר
+    window._tpProjectsRemote = [];
+    window._tpProjectsRemoteReady = false;
+    onSnapshot(TE_PROJECTS_COL, function(snap){
+      var list=[];
+      snap.forEach(function(d){
+        try{
+          var payload=JSON.parse(d.data().payload);
+          var key='te_proj_'+d.id;
+          list.push({
+            key:key, pid:d.id,
+            name:(payload.meta&&payload.meta.name)||'(ללא שם)',
+            updatedAt:(payload.meta&&payload.meta.updatedAt)||0,
+            data:payload.data||{}, meta:payload.meta||{}
+          });
+          // עדכן מטמון מקומי כגיבוי offline
+          try{ localStorage.setItem(key, JSON.stringify(payload)); }catch(e){}
+        }catch(e){}
+      });
+      window._tpProjectsRemote = list;
+      window._tpProjectsRemoteReady = true;
+      if(typeof window._onTPProjectsUpdate === 'function') window._onTPProjectsUpdate(list);
+    }, function(err){ console.error('FB te_projects listen error:', err); });
 
     // Save notes to Firestore
     var _notesSaveTimer=null;
@@ -1334,15 +1369,19 @@ function render(){
           _tc.style.cssText='width:'+WW_+'px;height:22px;border-right:1px solid #e0deda;flex-shrink:0;box-sizing:border-box;';
           tpRow.appendChild(_tc);
         }
-        if(w.globalId){
+        {
           var _tpProjs=getTPProjects().filter(function(p){return _tpActive.has(p.key);});
           _tpProjs.forEach(function(proj){
             var projGlobalId;
-            try{var _raw=localStorage.getItem(proj.key);if(_raw){var _pm=JSON.parse(_raw);projGlobalId=_pm&&_pm.meta?_pm.meta.globalId:undefined;}}catch(e){}
+            if(proj.meta){ projGlobalId=proj.meta.globalId; }
+            else{ try{var _raw=localStorage.getItem(proj.key);if(_raw){var _pm=JSON.parse(_raw);projGlobalId=_pm&&_pm.meta?_pm.meta.globalId:undefined;}}catch(e){} }
             var matchedGanttProj=projGlobalId?D.projects.find(function(gp){return gp.globalId&&gp.globalId===projGlobalId;}):null;
             var planWorkers=proj.data.workers||[];
             var planTasks=proj.data.tasks||[];
-            var planWorker=planWorkers.find(function(pw){return pw.globalId&&pw.globalId===w.globalId;});
+            // התאמה לפי ID זהה — זה קורה אוטומטית לכל עובד שנוסף לתוכנית מרשימת השיבוץ.
+            // globalId (שדה טקסט ידני) משמש רק כגיבוי, למקרה של קישור ידני בין עובדים שונים.
+            var planWorker=planWorkers.find(function(pw){return String(pw.id)===String(w.id);});
+            if(!planWorker&&w.globalId) planWorker=planWorkers.find(function(pw){return pw.globalId&&pw.globalId===w.globalId;});
             if(!planWorker)return;
             planTasks.filter(function(t){return +t.wid===+planWorker.id;}).forEach(function(task){
               var _days=pd(task.end).getTime()-pd(task.start).getTime();
@@ -4042,27 +4081,37 @@ function toggleTPPanel(){
 }
 
 function getTPProjects(){
-  // scan localStorage for all te_proj_* keys
-  var projects = [];
+  // Firebase (רשימה חיה, cross-tab/cross-device) הוא מקור האמת
+  var byKey = {};
+  (window._tpProjectsRemote||[]).forEach(function(p){ byKey[p.key]=p; });
+  // גיבוי מקומי — תופס תוכניות שעדיין לא הגיעו ל-Firebase (למשל offline)
   for(var i = 0; i < localStorage.length; i++){
     var key = localStorage.key(i);
     if(!key || key.indexOf('te_proj_') !== 0) continue;
+    if(byKey[key]) continue; // Firebase כבר מכיל את זה
     try{
       var p = JSON.parse(localStorage.getItem(key));
       if(p && p.data && p.meta){
-        projects.push({
+        byKey[key] = {
           key: key,
           pid: p.meta.id || key.replace('te_proj_',''),
           name: p.meta.name || '(ללא שם)',
           updatedAt: p.meta.updatedAt || 0,
           data: p.data
-        });
+        };
       }
     }catch(e){}
   }
+  var projects = Object.keys(byKey).map(function(k){return byKey[k];});
   projects.sort(function(a,b){return b.updatedAt - a.updatedAt;});
   return projects;
 }
+
+// כשהרשימה מ-Firebase מתעדכנת (תוכנית חדשה/נמחקת/שונתה בכל טאב) — רענן פאנל + overlay
+window._onTPProjectsUpdate = function(){
+  if(_tpPanelOpen) buildTPPanel();
+  if(_tpActive && _tpActive.size > 0 && typeof render === 'function') render();
+};
 
 function buildTPPanel(){
   var body = document.getElementById('tp-body');

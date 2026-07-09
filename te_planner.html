@@ -2355,6 +2355,19 @@ function openImportOrgModal(){
 
     // כל עובדי הקבוצה (כולל אלה עם צוות) — מקובצים לפי צוות
     var teamsInGroup=(org.teams||[]).filter(function(t){return t.gid===g.id;});
+    // אינדקס גלובלי לכל עובדי הקבוצה (על פני כל הצוותים + עובדים ישירים) —
+    // כדי שגוונים לא יתחילו מחדש בכל צוות ויתחפפו בין עובדים בצוותים שונים
+    var directWorkersAll=(org.workers||[]).filter(function(w){return w.group===g.id&&(!w.team||!teamsInGroup.find(function(t){return t.id===w.team;}));});
+    var groupWorkerOrder=[];
+    teamsInGroup.forEach(function(t){
+      (org.workers||[]).filter(function(w){return w.team===t.id;}).forEach(function(w){groupWorkerOrder.push(w.id);});
+    });
+    directWorkersAll.forEach(function(w){groupWorkerOrder.push(w.id);});
+    var totalGroupWorkers=groupWorkerOrder.length;
+    function shadeForWorker(w){
+      var idx=groupWorkerOrder.indexOf(w.id);
+      return workerShade(gColor,idx<0?0:idx,totalGroupWorkers);
+    }
     teamsInGroup.forEach(function(t){
       var tExists=D.teams.find(function(x){return x.id===t.id;});
       var tRow=document.createElement('div');
@@ -2381,21 +2394,16 @@ function openImportOrgModal(){
       tRow.appendChild(tName);tRow.appendChild(tBtn);
       gDiv.appendChild(tRow);
 
-      // עובדים בצוות זה — עם גוונים ייחודיים
+      // עובדים בצוות זה — גוון ייחודי לפי מקום גלובלי בקבוצה
       var tWorkers=(org.workers||[]).filter(function(w){return w.team===t.id;});
-      var totalW=tWorkers.length;
-      tWorkers.forEach(function(w,wi){
-        var shade=workerShade(gColor,wi,totalW);
-        gDiv.appendChild(_buildWorkerRow(w,org,g,gColor,shade));
+      tWorkers.forEach(function(w){
+        gDiv.appendChild(_buildWorkerRow(w,org,g,gColor,shadeForWorker(w)));
       });
     });
 
-    // עובדים ישירות בקבוצה (ללא צוות) — עם גוונים
-    var directWorkers=(org.workers||[]).filter(function(w){return w.group===g.id&&(!w.team||!teamsInGroup.find(function(t){return t.id===w.team;}));});
-    var totalDW=directWorkers.length;
-    directWorkers.forEach(function(w,wi){
-      var shade=workerShade(gColor,wi,totalDW);
-      gDiv.appendChild(_buildWorkerRow(w,org,g,gColor,shade));
+    // עובדים ישירות בקבוצה (ללא צוות) — גוון ייחודי לפי מקום גלובלי בקבוצה
+    directWorkersAll.forEach(function(w){
+      gDiv.appendChild(_buildWorkerRow(w,org,g,gColor,shadeForWorker(w)));
     });
 
     body.appendChild(gDiv);
