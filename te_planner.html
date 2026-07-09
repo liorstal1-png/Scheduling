@@ -222,6 +222,22 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
       return null;
     };
 
+    // ── Real-time listener — gantt data (workers/groups/teams) changes live ──
+    let _ganttSyncStarted = false;
+    window._fbStartGanttSync = function() {
+      if(_ganttSyncStarted) return;
+      _ganttSyncStarted = true;
+      onSnapshot(doc(db, 'gantt', 'data'), function(snap) {
+        if(!snap.exists()) return;
+        try {
+          var remote = JSON.parse(snap.data().payload);
+          if(typeof window._onGanttDataUpdate === 'function') window._onGanttDataUpdate(remote);
+        } catch(e) {}
+      }, function(err){
+        if(typeof window._onGanttDataError === 'function') window._onGanttDataError(err);
+      });
+    };
+
   </script>
 </head>
 <body>
@@ -291,7 +307,14 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 <!-- Import from gantt modal -->
 <div class="ov" id="importOrgModal" onclick="if(event.target===this)cm('importOrgModal')">
   <div class="modal" style="max-width:380px;">
-    <div class="mhdr"><span class="mtitle">הוסף לתוכנית</span><button class="mx" onclick="cm('importOrgModal')">✕</button></div>
+    <div class="mhdr">
+      <span class="mtitle">הוסף לתוכנית</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="btn btn-sm" id="iomRefreshBtn" title="רענן נתונים מהשיבוץ">🔄 רענן</button>
+        <button class="mx" onclick="cm('importOrgModal')">✕</button>
+      </div>
+    </div>
+    <div id="iom-status" style="padding:6px 14px 0;font-size:11px;color:var(--mut);"></div>
     <div class="mbody" id="iom-body" style="max-height:60vh;overflow-y:auto;"></div>
     <div class="mfoot"><button class="btn" onclick="cm('importOrgModal')">סגור</button></div>
   </div>
@@ -593,6 +616,47 @@ function lighten(hex,amount){ // amount 0-1, 1=white
 function darken(hex,amount){ // amount 0-1, 1=black
   var c=hexToRgb(hex);
   return rgbToHex(c.r*(1-amount),c.g*(1-amount),c.b*(1-amount));
+}
+function hexToHsl(hex){
+  var c=hexToRgb(hex),r=c.r/255,g=c.g/255,b=c.b/255;
+  var max=Math.max(r,g,b),min=Math.min(r,g,b),h,s,l=(max+min)/2;
+  if(max===min){h=0;s=0;}
+  else{
+    var d=max-min;
+    s=l>0.5?d/(2-max-min):d/(max+min);
+    if(max===r)h=((g-b)/d+(g<b?6:0));
+    else if(max===g)h=((b-r)/d+2);
+    else h=((r-g)/d+4);
+    h*=60;
+  }
+  return {h:h,s:s*100,l:l*100};
+}
+function hslToHex(h,s,l){
+  h=((h%360)+360)%360;s=Math.max(0,Math.min(100,s))/100;l=Math.max(0,Math.min(100,l))/100;
+  var c=(1-Math.abs(2*l-1))*s,x=c*(1-Math.abs((h/60)%2-1)),m=l-c/2,r=0,g=0,b=0;
+  if(h<60){r=c;g=x;b=0;}else if(h<120){r=x;g=c;b=0;}else if(h<180){r=0;g=c;b=x;}
+  else if(h<240){r=0;g=x;b=c;}else if(h<300){r=x;g=0;b=c;}else{r=c;g=0;b=x;}
+  return rgbToHex((r+m)*255,(g+m)*255,(b+m)*255);
+}
+// deterministic, evenly-spaced shade for the idx'th of `total` workers under the same base color.
+// spreads lightness symmetrically around the base so shades stay visually distinct even for
+// larger teams, and nudges the hue slightly once the lightness range is exhausted (idx>=9) so
+// colors never collapse into duplicates (e.g. everything saturating to white/black).
+function workerShade(base,idx,total){
+  if(!base)return base;
+  if(total<=1)return base;
+  var hsl=hexToHsl(base);
+  var order=[0];
+  for(var i=1;order.length<total;i++){order.push(i);if(order.length<total)order.push(-i);}
+  var RANGE=34; // max lightness deviation in percentage points
+  var half=Math.ceil((total-1)/2)||1;
+  var step=RANGE/half;
+  var pos=order[idx]!==undefined?order[idx]:0;
+  var newL=hsl.l+pos*step;
+  newL=Math.max(14,Math.min(86,newL));
+  var cycle=Math.floor(idx/9); // after 9 workers, start nudging hue to avoid repeats
+  var newH=hsl.h+cycle*27;
+  return hslToHex(newH,hsl.s,newL);
 }
 // get effective color for a worker (from hierarchy)
 function render(){
@@ -2167,20 +2231,30 @@ window.updateTaskWeeks=updateTaskWeeks;
 // Expose modal functions globally
 
 // ── מקור נתונים: קבוצות/עובדים מאפליקציית השיבוצים ────────────────────────
-var _ganttData=null; // נטען פעם אחת מFirebase
+var _ganttData=null; // תמיד המקור העדכני ביותר שהתקבל
+var _ganttDataError=false;
+var _ganttLoading=false;
 
-async function loadGanttData(){
-  if(_ganttData) return _ganttData;
-  // נסה localStorage קודם
+async function loadGanttData(forceRefresh){
+  if(_ganttData && !forceRefresh) return _ganttData;
+  _ganttLoading=true;
+  // Firebase הוא מקור האמת — תמיד ננסה אותו קודם, גם אם יש מטמון מקומי ישן
+  if(window._fbLoadGanttData){
+    try{
+      var d=await window._fbLoadGanttData();
+      if(d){
+        _ganttData=d;_ganttDataError=false;_ganttLoading=false;
+        try{localStorage.setItem('gantt7',JSON.stringify(d));}catch(e){}
+        return _ganttData;
+      }
+    }catch(e){}
+  }
+  // נפילה חוזרת: מטמון מקומי (offline / Firebase לא הגיב)
   try{
     var s=localStorage.getItem('gantt7');
-    if(s){_ganttData=JSON.parse(s);return _ganttData;}
+    if(s){_ganttData=JSON.parse(s);_ganttLoading=false;return _ganttData;}
   }catch(e){}
-  // Firebase
-  if(window._fbLoadGanttData){
-    var d=await window._fbLoadGanttData();
-    if(d){_ganttData=d;localStorage.setItem('gantt7',JSON.stringify(d));return _ganttData;}
-  }
+  _ganttDataError=true;_ganttLoading=false;
   return null;
 }
 
@@ -2193,24 +2267,48 @@ function getOrgFromGantt(){
   };
 }
 
-// טעינת gantt data בטעינה
+// עדכון חי — כשמשהו משתנה בשיבוץ, הרשימה בתוכנית מתעדכנת מיד
+window._onGanttDataUpdate=function(remote){
+  _ganttData=remote;_ganttDataError=false;
+  try{localStorage.setItem('gantt7',JSON.stringify(remote));}catch(e){}
+  var modal=document.getElementById('importOrgModal');
+  if(modal&&modal.classList.contains('open'))openImportOrgModal();
+};
+window._onGanttDataError=function(){
+  if(!_ganttData)_ganttDataError=true;
+};
+
+// טעינה ראשונית + הפעלת סנכרון חי, עם ניסיונות חוזרים עד שה-Firebase module נטען
 (function(){
   var tries=0;
   var iv=setInterval(async function(){
-    tries++;if(tries>30){clearInterval(iv);return;}
-    var d=await loadGanttData();
-    if(d){clearInterval(iv);}
+    tries++;
+    if(window._fbLoadGanttData){
+      clearInterval(iv);
+      await loadGanttData();
+      if(window._fbStartGanttSync)window._fbStartGanttSync();
+    } else if(tries>100){ // ~30 שניות — ה-Firebase module כנראה לא נטען
+      clearInterval(iv);
+      _ganttDataError=true;
+    }
   },300);
 })();
 
 function openImportOrgModal(){
-  // אם אין נתוני גנט — נסה לטעון
-  if(!_ganttData){
-    loadGanttData().then(function(){openImportOrgModal();});
-    toast('טוען נתוני שיבוץ...');return;
-  }
-  var org=getOrgFromGantt();
+  var status=document.getElementById('iom-status');
   var body=document.getElementById('iom-body');
+  // אין עדיין נתונים — טוען
+  if(!_ganttData){
+    if(status)status.textContent=_ganttDataError?'⚠️ לא ניתן להתחבר לנתוני השיבוץ. בדוק חיבור ולחץ "רענן".':'⏳ טוען נתוני שיבוץ...';
+    body.innerHTML='';
+    om('importOrgModal');
+    if(!_ganttLoading&&!_ganttDataError){
+      loadGanttData().then(function(d){ if(d) openImportOrgModal(); else { var s=document.getElementById('iom-status'); if(s)s.textContent='⚠️ לא ניתן להתחבר לנתוני השיבוץ. בדוק חיבור ולחץ "רענן".'; } });
+    }
+    return;
+  }
+  if(status)status.textContent='';
+  var org=getOrgFromGantt();
   body.innerHTML='';
 
   if(!org.groups||!org.groups.length){
@@ -2287,7 +2385,7 @@ function openImportOrgModal(){
       var tWorkers=(org.workers||[]).filter(function(w){return w.team===t.id;});
       var totalW=tWorkers.length;
       tWorkers.forEach(function(w,wi){
-        var shade=totalW<=1?gColor:(wi%2===0?lighten(gColor,0.15+wi*0.08):darken(gColor,0.1+wi*0.05));
+        var shade=workerShade(gColor,wi,totalW);
         gDiv.appendChild(_buildWorkerRow(w,org,g,gColor,shade));
       });
     });
@@ -2296,7 +2394,7 @@ function openImportOrgModal(){
     var directWorkers=(org.workers||[]).filter(function(w){return w.group===g.id&&(!w.team||!teamsInGroup.find(function(t){return t.id===w.team;}));});
     var totalDW=directWorkers.length;
     directWorkers.forEach(function(w,wi){
-      var shade=totalDW<=1?gColor:(wi%2===0?lighten(gColor,0.15+wi*0.08):darken(gColor,0.1+wi*0.05));
+      var shade=workerShade(gColor,wi,totalDW);
       gDiv.appendChild(_buildWorkerRow(w,org,g,gColor,shade));
     });
 
@@ -2312,6 +2410,15 @@ function openImportOrgModal(){
   om('importOrgModal');
 }
 window.openImportOrgModal=openImportOrgModal;
+document.getElementById('iomRefreshBtn').addEventListener('click',function(e){
+  e.stopPropagation();
+  var status=document.getElementById('iom-status');
+  if(status)status.textContent='⏳ מרענן...';
+  loadGanttData(true).then(function(d){
+    openImportOrgModal();
+    toast(d?'✓ נתונים עודכנו':'⚠️ לא הצלחתי להתחבר לשיבוץ');
+  });
+});
 
 function _buildWorkerRow(w,org,grp,gColor,shade){
   var wExists=D.workers.find(function(x){return x.id===w.id;});
