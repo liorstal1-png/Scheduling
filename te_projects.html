@@ -385,6 +385,7 @@ function openProject(id){
   // Pass data via sessionStorage - completely isolated per session
   sessionStorage.setItem('te_active_pid', id);
   sessionStorage.setItem('te_active_pname', proj.meta.name);
+  sessionStorage.setItem('te_active_meta', JSON.stringify(proj.meta));
   if(proj.data){
     sessionStorage.setItem('te_active', JSON.stringify({
       D: proj.data,

@@ -4069,9 +4069,11 @@ function createWorkPlan(proj){
   localStorage.setItem('te_proj_'+pid,JSON.stringify(projObj));
   // שמור ב-Firebase
   if(window._fbSaveProject) window._fbSaveProject(pid,projObj);
-  // פתח את התוכנית
+  // פתח את התוכנית — נשמור גם את ה-meta המלא (כולל globalId) ב-sessionStorage,
+  // כדי שהטאב החדש יוכל לשמור נכון גם אם עדיין לא הספיק לקבל את הרשומה מ-localStorage/Firebase
   sessionStorage.setItem('te_active_pid',pid);
   sessionStorage.setItem('te_active_pname',proj.name);
+  sessionStorage.setItem('te_active_meta',JSON.stringify(meta));
   window.open('./te_planner.html?pid='+pid,'_blank');
   toast('תוכנית עבודה נוצרה ל-'+proj.name);
 }
@@ -4178,16 +4180,20 @@ function buildTPPanel(){
       var pid = proj.key.replace('te_proj_','');
       sessionStorage.setItem('te_active_pid', pid);
       sessionStorage.setItem('te_active_pname', proj.name);
+      if(proj.meta) sessionStorage.setItem('te_active_meta', JSON.stringify(proj.meta));
       window.open('./te_planner.html?pid='+pid, '_blank');
     });
 
     // כפתור מחק — מוחק גם מקומית וגם מ-Firebase, בכל מקום שהתוכנית מוצגת
+    // (זמין רק במצב עריכה, בדיוק כמו מחיקת תוכנית עבודה דרך קליק ימני על פרויקט)
     var delBtn = document.createElement('button');
     delBtn.textContent = '🗑';
     delBtn.title = 'מחק תוכנית עבודה';
+    delBtn.className = 'edit-only';
     delBtn.style.cssText = 'background:none;border:none;cursor:pointer;font-size:12px;color:#E24B4A;padding:2px 4px;flex-shrink:0;';
     delBtn.addEventListener('click', function(e){
       e.stopPropagation();
+      if(!EDIT_MODE)return;
       deleteTPProject(proj);
     });
 

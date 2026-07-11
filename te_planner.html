@@ -557,14 +557,24 @@ function saveData(){
     if(pid){
       var pkey='te_proj_'+pid;
       var proj=localStorage.getItem(pkey);
+      var p;
       if(proj){
-        var p=JSON.parse(proj);
-        p.data=D;
-        p.meta.updatedAt=Date.now();
-        localStorage.setItem(pkey,JSON.stringify(p));
-        // שמור גם ב-Firebase
-        if(window._fbSavePlanner) window._fbSavePlanner(pid, p);
+        p=JSON.parse(proj);
+      } else {
+        // אין עדיין רשומה מקומית לתוכנית הזו בטאב הזה (למשל היא נוצרה/נפתחה בטאב אחר
+        // ועדיין לא הספיקה להסתנכרן) — שחזר meta (כולל globalId) מה-sessionStorage
+        // ששמרנו בזמן הפתיחה, כדי שהשמירה תמיד תעבוד ולא תלך לאיבוד.
+        var metaRaw=sessionStorage.getItem('te_active_meta');
+        var meta=null;
+        try{ meta=metaRaw?JSON.parse(metaRaw):null; }catch(e){}
+        if(!meta) meta={id:pid,name:sessionStorage.getItem('te_active_pname')||'תוכנית עבודה',createdAt:Date.now()};
+        p={meta:meta,data:D};
       }
+      p.data=D;
+      p.meta.updatedAt=Date.now();
+      localStorage.setItem(pkey,JSON.stringify(p));
+      // שמור גם ב-Firebase
+      if(window._fbSavePlanner) window._fbSavePlanner(pid, p);
     }
   }catch(e){}
 }
