@@ -1396,7 +1396,7 @@ function render(){
             var planWorker=planWorkers.find(function(pw){return String(pw.id)===String(w.id);});
             if(!planWorker&&w.globalId) planWorker=planWorkers.find(function(pw){return pw.globalId&&pw.globalId===w.globalId;});
             if(!planWorker)return;
-            planTasks.filter(function(t){return +t.wid===+planWorker.id;}).forEach(function(task){
+            planTasks.filter(function(t){return String(t.wid)===String(planWorker.id);}).forEach(function(task){
               var _days=pd(task.end).getTime()-pd(task.start).getTime();
               var _weeks=Math.max(1,Math.round((_days/86400000-6)/7)+1);
               var _dr=Math.round(diffW(TL_START,pd(task.start))*WW_);
