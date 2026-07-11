@@ -538,6 +538,10 @@ function undo(){
 }
 
 function pd(s){var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2],12,0,0,0);}
+// השוואת מזהים בטוחה: מזהי עובד/משימה יכולים להיות מספריים (נוצרו בתוכנית) או
+// מחרוזתיים (יובאו מאפליקציית השיבוץ, למשל "w1720000000000") — כפיית + הופכת
+// מחרוזות כאלה ל-NaN ושוברת את ההשוואה, לכן משווים כמחרוזות תמיד.
+function idEq(a,b){return String(a)===String(b);}
 function fd(dt){var y=dt.getFullYear(),m=dt.getMonth()+1,d=dt.getDate();return y+'-'+(m<10?'0':'')+m+'-'+(d<10?'0':'')+d;}
 function addW(dt,n){return new Date(dt.getTime()+n*7*86400000);}
 function addD(dt,n){return new Date(dt.getTime()+n*86400000);}
@@ -1161,7 +1165,7 @@ function getWorkerRowAtY(y){
   var rows=document.querySelectorAll('.tlrow[data-wid]');
   for(var i=0;i<rows.length;i++){
     var r=rows[i].getBoundingClientRect();
-    if(y>=r.top&&y<=r.bottom)return +rows[i].dataset.wid;
+    if(y>=r.top&&y<=r.bottom)return rows[i].dataset.wid;
   }
   return null;
 }
@@ -1170,7 +1174,7 @@ function getWorkerRowAtY(clientY){
   var rows=document.querySelectorAll('.tlrow[data-wid]');
   for(var i=0;i<rows.length;i++){
     var r=rows[i].getBoundingClientRect();
-    if(clientY>=r.top&&clientY<r.bottom)return {wid:+rows[i].dataset.wid,el:rows[i]};
+    if(clientY>=r.top&&clientY<r.bottom)return {wid:rows[i].dataset.wid,el:rows[i]};
   }
   return null;
 }
@@ -1218,12 +1222,12 @@ function startDrag(e,tid,worker,blk){
     for(var i=0;i<rows.length;i++){
       var r=rows[i].getBoundingClientRect();
       if(ev.clientY>=r.top&&ev.clientY<r.bottom){
-        var newWid=+rows[i].dataset.wid;
+        var newWidRaw=rows[i].dataset.wid;
         if(rows[i]!==currentRow){
           rows[i].appendChild(blk);
           currentRow=rows[i];
-          t.wid=newWid;
-          var nw=D.workers.find(function(x){return +x.id===newWid;});
+          var nw=D.workers.find(function(x){return idEq(x.id,newWidRaw);});
+          t.wid=nw?nw.id:newWidRaw;
           if(nw)blk.style.background=t.color||nw.color;
         }
         break;
@@ -1801,7 +1805,9 @@ function openTaskModal(tid,wid,startDate){
 }
 function saveTask(){
   var name=document.getElementById('tsm-name').value.trim();
-  var wid=parseInt(document.getElementById('tsm-worker').value);
+  var widRaw=document.getElementById('tsm-worker').value;
+  var widWorker=D.workers.find(function(w){return String(w.id)===String(widRaw);});
+  var wid=widWorker?widWorker.id:widRaw;
   var start=document.getElementById('tsm-start').value;
   var weeks=Math.max(1,parseInt(document.getElementById('tsm-weeks').value)||1);
   var end=fd(addD(addW(pd(start),weeks-1),6));
@@ -1902,12 +1908,12 @@ function buildSummary(){
     D.teams.filter(function(t){return +t.gid===+g.id;}).forEach(function(team){
       var wids=D.workers.filter(function(w){return +w.tid===+team.id;}).map(function(w){return w.id;});
       var tWeeks=0;
-      wids.forEach(function(wid){D.tasks.filter(function(t){return +t.wid===+wid&&!t.offProject;}).forEach(function(t){tWeeks+=taskWeeks(t);});});
+      wids.forEach(function(wid){D.tasks.filter(function(t){return idEq(t.wid,wid)&&!t.offProject;}).forEach(function(t){tWeeks+=taskWeeks(t);});});
       if(tWeeks>0){teamRows.push({name:team.name,weeks:tWeeks,hours:tWeeks*HPW});gWeeks+=tWeeks;}
     });
     var directWids=D.workers.filter(function(w){return +w.gid===+g.id&&(!w.tid||!D.teams.find(function(t){return +t.id===+w.tid;}));}).map(function(w){return w.id;});
     var directWeeks=0;
-    directWids.forEach(function(wid){D.tasks.filter(function(t){return +t.wid===+wid&&!t.offProject;}).forEach(function(t){directWeeks+=taskWeeks(t);});});
+    directWids.forEach(function(wid){D.tasks.filter(function(t){return idEq(t.wid,wid)&&!t.offProject;}).forEach(function(t){directWeeks+=taskWeeks(t);});});
     if(directWeeks>0){teamRows.push({name:'ישיר לקבוצה',weeks:directWeeks,hours:directWeeks*HPW});gWeeks+=directWeeks;}
     if(gWeeks>0){rows.push({name:g.name,weeks:gWeeks,hours:gWeeks*HPW,teams:teamRows});totalWeeks+=gWeeks;totalHours+=gWeeks*HPW;}
   });
@@ -1957,12 +1963,12 @@ window.exportSummaryXlsx=function exportSummaryXlsx(){
     D.teams.filter(function(t){return +t.gid===+g.id;}).forEach(function(team){
       var wids=D.workers.filter(function(w){return +w.tid===+team.id;}).map(function(w){return w.id;});
       var tW=0;
-      wids.forEach(function(wid){D.tasks.filter(function(t){return +t.wid===+wid&&!t.offProject;}).forEach(function(t){tW+=taskWeeks(t);});});
+      wids.forEach(function(wid){D.tasks.filter(function(t){return idEq(t.wid,wid)&&!t.offProject;}).forEach(function(t){tW+=taskWeeks(t);});});
       if(tW>0){wsData.push([g.name,team.name,tW,tW*HPW]);gW+=tW;}
     });
     var dW=0;
     D.workers.filter(function(w){return +w.gid===+g.id&&(!w.tid||!D.teams.find(function(t){return +t.id===+w.tid;}));}).forEach(function(w){
-      D.tasks.filter(function(t){return +t.wid===+w.id&&!t.offProject;}).forEach(function(t){dW+=taskWeeks(t);});
+      D.tasks.filter(function(t){return idEq(t.wid,w.id)&&!t.offProject;}).forEach(function(t){dW+=taskWeeks(t);});
     });
     if(dW>0){wsData.push([g.name,'ישיר לקבוצה',dW,dW*HPW]);gW+=dW;}
     if(gW>0){wsData.push([g.name,'סה"כ',gW,gW*HPW]);totalW+=gW;totalH+=gW*HPW;}
@@ -2011,7 +2017,7 @@ function buildTasksTable(){
     // direct workers
     D.workers.filter(function(w){return +w.gid===+g.id&&(!w.tid||!D.teams.find(function(t){return +t.id===+w.tid;}));}).forEach(function(w){workers.push(w);});
     workers.forEach(function(w){
-      var tasks=D.tasks.filter(function(t){return +t.wid===+w.id;});
+      var tasks=D.tasks.filter(function(t){return idEq(t.wid,w.id);});
       if(!tasks.length)return;
       tasks.forEach(function(t,ti){
         rows.push({gname:g.name,gspan:0,wname:w.name,wcolor:w.color,wspan:0,tname:t.name,weeks:t.weeks||1,first:ti===0,gFirst:false,offProject:t.offProject});
@@ -2068,7 +2074,7 @@ window.exportTasksTableXlsx=function(){
     });
     D.workers.filter(function(w){return +w.gid===+g.id&&(!w.tid||!D.teams.find(function(t){return +t.id===+w.tid;}));}).forEach(function(w){workers.push(w);});
     workers.forEach(function(w){
-      var tasks=D.tasks.filter(function(t){return +t.wid===+w.id;});
+      var tasks=D.tasks.filter(function(t){return idEq(t.wid,w.id);});
       tasks.forEach(function(t){
         wsData.push([g.name,w.name,t.name,t.weeks||1,t.offProject?'כן':'']);
       });
