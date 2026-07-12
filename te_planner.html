@@ -483,6 +483,20 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   </div>
 </div>
 
+<!-- Off-project modal -->
+<div class="ov" id="offProjModal" onclick="if(event.target===this)cm('offProjModal')">
+  <div class="modal" style="max-width:340px;">
+    <div class="mhdr"><span class="mtitle">🔀 על חשבון פרויקט אחר</span><button class="mx" onclick="cm('offProjModal')">✕</button></div>
+    <div class="mbody">
+      <div class="fld"><label>שם הפרויקט/סעיף</label><input id="offProj-name" placeholder="לדוגמה: תחזוקה, לקוח X..."/></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn" onclick="cm('offProjModal')">ביטול</button>
+      <button class="btn btn-p" onclick="saveOffProject()">שמור</button>
+    </div>
+  </div>
+</div>
+
 <div id="taskTooltip" style="position:fixed;z-index:500;pointer-events:none;display:none;max-width:180px;background:#1E2A3A;color:#fff;border-radius:6px;padding:6px 10px;font-family:Heebo,sans-serif;font-size:11px;line-height:1.5;box-shadow:0 2px 12px rgba(0,0,0,.3);direction:rtl;"></div>
 <div class="note-tooltip" id="noteTooltip"></div>
 <canvas id="depCanvas" style="position:fixed;top:0;left:0;pointer-events:none;z-index:50;"></canvas>
@@ -1644,7 +1658,10 @@ function openBlockCtx(e,tid){
    {sep:1},
    {l:'📝 '+(t.note?'ערוך הערה':'הוסף הערה'),f:function(){closeCtx();openNoteModal(tid);}},
    {l:t.risk?'✅ הסר סיכון':'⚠️ סיכון / נדרשת העמקה',f:function(){snapshot();t.risk=!t.risk;closeCtx();render();}},
-   {l:t.offProject?'✅ החזר לחשבון הפרויקט':'🔀 לא על חשבון הפרויקט',f:function(){snapshot();t.offProject=!t.offProject;closeCtx();render();}},
+   (t.offProject?
+     {l:'✏️ ערוך פרויקט אחר ('+offProjLabel(t)+')',f:function(){closeCtx();openOffProjectModal(tid);}}
+     :{l:'🔀 על חשבון פרויקט אחר',f:function(){closeCtx();openOffProjectModal(tid);}}),
+   ...(t.offProject?[{l:'✅ החזר לחשבון הפרויקט',f:function(){snapshot();t.offProject=null;closeCtx();render();}}]:[]),
    {sep:1},
    {l:'🗑 מחק',f:function(){snapshot();D.tasks=D.tasks.filter(function(x){return x.id!==tid;});closeCtx();render();},cls:'del'}
   ].forEach(function(it){
@@ -1930,22 +1947,32 @@ function buildSummary(){
   });
   html+='<div style="display:flex;justify-content:space-between;padding:10px;background:#1E3A5F;border-radius:var(--r);color:#fff;font-weight:700;font-size:13px;margin-top:8px;">';
   html+='<span>סה"כ</span><span>'+totalWeeks+' שבועות  '+totalHours+' שעות</span></div>';
-  // off-project tasks
+  // משימות על חשבון פרויקט אחר — כל שם/סעיף מוצג כקבוצה נפרדת משלו
   var offTasks=D.tasks.filter(function(t){return t.offProject;});
   if(offTasks.length){
-    var offWeeks=0;
-    offTasks.forEach(function(t){offWeeks+=taskWeeks(t);});
-    var offHours=offWeeks*HPW;
-    html+='<div style="margin-top:14px;border-top:2px dashed var(--brd);padding-top:10px;">';
-    html+='<div style="font-size:11px;font-weight:700;color:var(--mut);margin-bottom:6px;">לא על חשבון הפרויקט</div>';
+    var offByLabel={};
     offTasks.forEach(function(t){
-      var w=D.workers.find(function(x){return x.id===t.wid;});
-      var tw=taskWeeks(t);
-      html+='<div style="display:flex;justify-content:space-between;padding:5px 10px;font-size:12px;border-bottom:1px solid var(--brd);">';
-      html+='<span style="color:var(--mut);">'+(w?w.name:'')+' — '+t.name+'</span><span>'+tw+' שבועות  '+(tw*HPW)+' שעות</span></div>';
+      var label=offProjLabel(t);
+      if(!offByLabel[label])offByLabel[label]=[];
+      offByLabel[label].push(t);
     });
-    html+='<div style="display:flex;justify-content:space-between;padding:7px 10px;background:var(--bg);border-radius:var(--r);font-weight:700;font-size:12px;margin-top:4px;">';
-    html+='<span>סה"כ לא על חשבון</span><span style="color:var(--mut);">'+offWeeks+' שבועות  '+offHours+' שעות</span></div>';
+    html+='<div style="margin-top:14px;border-top:2px dashed var(--brd);padding-top:10px;">';
+    html+='<div style="font-size:11px;font-weight:700;color:var(--mut);margin-bottom:8px;">על חשבון פרויקטים אחרים</div>';
+    Object.keys(offByLabel).forEach(function(label){
+      var tasks=offByLabel[label];
+      var labelWeeks=0;
+      tasks.forEach(function(t){labelWeeks+=taskWeeks(t);});
+      html+='<div style="margin-bottom:10px;">';
+      html+='<div style="display:flex;justify-content:space-between;padding:7px 10px;background:var(--bg);border-radius:var(--r);font-weight:700;font-size:13px;">';
+      html+='<span>🔀 '+label+'</span><span style="color:var(--acc);">'+labelWeeks+' שבועות  '+(labelWeeks*HPW)+' שעות</span></div>';
+      tasks.forEach(function(t){
+        var w=D.workers.find(function(x){return x.id===t.wid;});
+        var tw=taskWeeks(t);
+        html+='<div style="display:flex;justify-content:space-between;padding:5px 10px 5px 20px;font-size:12px;border-bottom:1px solid var(--brd);">';
+        html+='<span style="color:var(--mut);">'+(w?w.name:'')+' — '+t.name+'</span><span>'+tw+' שבועות  '+(tw*HPW)+' שעות</span></div>';
+      });
+      html+='</div>';
+    });
     html+='</div>';
   }
   body.innerHTML=html;
@@ -1975,19 +2002,29 @@ window.exportSummaryXlsx=function exportSummaryXlsx(){
   });
   wsData.push(['','','','']);
   wsData.push(['סה"כ','',totalW,totalH]);
-  // off-project section
+  // על חשבון פרויקטים אחרים — מקובץ לפי שם/סעיף
   var offTasks=D.tasks.filter(function(t){return t.offProject;});
   if(offTasks.length){
     wsData.push(['','','','']);
-    wsData.push(['לא על חשבון הפרויקט','','','']);
-    var offTotalW=0;
+    wsData.push(['על חשבון פרויקטים אחרים','','','']);
+    var offByLabel={};
     offTasks.forEach(function(t){
-      var w=D.workers.find(function(x){return x.id===t.wid;});
-      var tw=taskWeeks(t);
-      wsData.push([(w?w.name:'')+' — '+t.name,'',tw,tw*HPW]);
-      offTotalW+=tw;
+      var label=offProjLabel(t);
+      if(!offByLabel[label])offByLabel[label]=[];
+      offByLabel[label].push(t);
     });
-    wsData.push(['סה"כ לא על חשבון','',offTotalW,offTotalW*HPW]);
+    Object.keys(offByLabel).forEach(function(label){
+      var tasks=offByLabel[label];
+      var labelW=0;
+      wsData.push([label,'','','']);
+      tasks.forEach(function(t){
+        var w=D.workers.find(function(x){return x.id===t.wid;});
+        var tw=taskWeeks(t);
+        wsData.push([(w?w.name:'')+' — '+t.name,'',tw,tw*HPW]);
+        labelW+=tw;
+      });
+      wsData.push(['סה"כ '+label,'',labelW,labelW*HPW]);
+    });
   }
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(wsData);
@@ -2056,7 +2093,7 @@ function buildTasksTable(){
       html+='<td rowspan="'+r.wspan+'" style="padding:8px 10px;vertical-align:middle;text-align:right;background:#FAFAF8;">';
       html+='<span style="display:inline-flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:'+r.wcolor+';flex-shrink:0;display:inline-block;"></span><span>'+r.wname+'</span></span></td>';
     }
-    html+='<td style="padding:6px 10px;text-align:right;">'+(r.offProject?'<span style="color:#888;font-size:10px;">🔀</span> ':'')+r.tname+'</td>';
+    html+='<td style="padding:6px 10px;text-align:right;">'+(r.offProject?'<span style="color:#888;font-size:10px;" title="על חשבון: '+offProjLabel({offProject:r.offProject})+'">🔀 '+offProjLabel({offProject:r.offProject})+'</span> — ':'')+r.tname+'</td>';
     html+='<td style="padding:6px 10px;text-align:center;font-weight:600;color:#378ADD;">'+r.weeks+'</td>';
     html+='</tr>';
   });
@@ -2066,7 +2103,7 @@ function buildTasksTable(){
 
 window.exportTasksTableXlsx=function(){
   if(typeof XLSX==='undefined'){toast('טוען...');return;}
-  var wsData=[['קבוצה','עובד','משימה','שבועות','לא על חשבון']];
+  var wsData=[['קבוצה','עובד','משימה','שבועות','פרויקט אחר']];
   D.groups.forEach(function(g){
     var workers=[];
     D.teams.filter(function(t){return idEq(t.gid,g.id);}).forEach(function(team){
@@ -2076,7 +2113,7 @@ window.exportTasksTableXlsx=function(){
     workers.forEach(function(w){
       var tasks=D.tasks.filter(function(t){return idEq(t.wid,w.id);});
       tasks.forEach(function(t){
-        wsData.push([g.name,w.name,t.name,t.weeks||1,t.offProject?'כן':'']);
+        wsData.push([g.name,w.name,t.name,t.weeks||1,t.offProject?offProjLabel(t):'']);
       });
     });
   });
@@ -2089,14 +2126,14 @@ window.exportTasksTableXlsx=function(){
 };
 
 document.getElementById('exportBtn').onclick=function(){
-  var rows=[['משימה','עובד','התחלה','סיום','תלות']];
+  var rows=[['משימה','עובד','התחלה','סיום','תלות','פרויקט אחר']];
   D.tasks.forEach(function(t){
     var w=D.workers.find(function(x){return x.id===t.wid;});
     var depNames=D.deps.filter(function(d){return d.toTid===t.id;}).map(function(d){
       var ft=D.tasks.find(function(x){return x.id===d.fromTid;});return ft?ft.name:'';
     }).filter(Boolean).join(' | ');
-    rows.push([t.name,w?w.name:'',t.start,t.end,depNames]);
-    if(t.spanWid){var w2=D.workers.find(function(x){return x.id===t.spanWid;});if(w2)rows.push([t.name,w2.name,t.start,t.end,depNames]);}
+    rows.push([t.name,w?w.name:'',t.start,t.end,depNames,t.offProject?offProjLabel(t):'']);
+    if(t.spanWid){var w2=D.workers.find(function(x){return x.id===t.spanWid;});if(w2)rows.push([t.name,w2.name,t.start,t.end,depNames,t.offProject?offProjLabel(t):'']);}
   });
   var csv=rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='תכנית_עבודה.csv';a.click();
@@ -2195,6 +2232,7 @@ function showTooltip(e,t){
     var span=Math.round(diffW(pd(t.start),pd(t.end)))+1;
     var html='<div style="font-weight:600;font-size:11px;margin-bottom:2px;">'+t.name+'</div>';
     html+='<div style="color:#8EB4D8;font-size:10px;">'+t.start+' → '+t.end+'</div>';
+    if(t.offProject)html+='<div style="color:#B8C8DA;font-size:10px;margin-top:2px;">🔀 על חשבון: '+offProjLabel(t)+'</div>';
     if(t.note)html+='<div style="border-top:1px solid rgba(255,255,255,.15);margin-top:4px;padding-top:4px;color:#C8D8E8;font-size:10px;white-space:pre-wrap;">'+t.note+'</div>';
     tt.innerHTML=html;
     tt.style.display='block';
@@ -2227,6 +2265,32 @@ function saveNote(){
 }
 window.openNoteModal=openNoteModal;
 window.saveNote=saveNote;
+
+// ── על חשבון פרויקט אחר ─────────────────────────────────────────────────
+// t.offProject מחזיק כעת שם (מחרוזת) של הפרויקט/סעיף האחר שהמשימה נטענת עליו.
+// לתאימות אחורה: משימות ישנות שסומנו כ-true (בלי שם) יוצגו עם תווית ברירת מחדל.
+function offProjLabel(t){
+  if(!t||!t.offProject)return null;
+  return (typeof t.offProject==='string')?t.offProject:'אחר';
+}
+var _offProjTaskId=null;
+function openOffProjectModal(tid){
+  _offProjTaskId=tid;
+  var t=D.tasks.find(function(x){return x.id===tid;});
+  document.getElementById('offProj-name').value=(t&&typeof t.offProject==='string')?t.offProject:'';
+  om('offProjModal');
+  setTimeout(function(){document.getElementById('offProj-name').focus();},50);
+}
+function saveOffProject(){
+  var t=D.tasks.find(function(x){return x.id===_offProjTaskId;});
+  if(!t)return;
+  var name=document.getElementById('offProj-name').value.trim();
+  snapshot();
+  t.offProject=name||'אחר';
+  cm('offProjModal');render();toast('סומן על חשבון "'+t.offProject+'" ✓');
+}
+window.openOffProjectModal=openOffProjectModal;
+window.saveOffProject=saveOffProject;
 
 function updateTaskEnd(){
   var s=document.getElementById('tsm-start').value;
