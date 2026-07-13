@@ -2186,6 +2186,16 @@ window.exportGanttXlsx=async function exportGanttXlsx(){
           fillCell(cell,col);
           cell.font={color:{argb:textColorFor(col)},bold:true,size:7,name:'Arial'};
           cell.alignment={horizontal:'right',vertical:'middle'};
+          // מסגרת שחורה סביב המשימה — מוגדרת על כל התאים בטווח (כולל אלה שמוזגו),
+          // כי אקסל בונה את המסגרת של תא ממוזג מהקצוות של התאים הבודדים שבתוכו.
+          var border={style:'thin',color:{argb:'FF000000'}};
+          for(var ci=c1;ci<=c2;ci++){
+            ws.getCell(curRow,ci).border={
+              top:border,bottom:border,
+              left:ci===c1?border:undefined,
+              right:ci===c2?border:undefined
+            };
+          }
         });
       }
       curRow++;
