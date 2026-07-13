@@ -302,6 +302,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 <div class="sel-bar" id="selBar">
   <span id="selCount" style="color:var(--mut);font-size:11px;"></span>
   <button class="btn btn-sm" id="selColorBtn">🎨 צבע</button>
+  <button class="btn btn-sm" id="selRiskBtn">⚠️ סיכון</button>
+  <button class="btn btn-sm" id="selOffProjBtn">🔀 פרויקט אחר</button>
   <button class="btn btn-sm" id="selDelBtn" style="color:#E24B4A;">🗑 מחק</button>
   <button class="btn btn-sm" id="selCancelBtn">✕</button>
 </div>
@@ -1318,6 +1320,21 @@ document.getElementById('selDelBtn').addEventListener('click',function(){
 document.getElementById('selCancelBtn').addEventListener('click',clearSel);
 document.getElementById('selColorBtn').addEventListener('click',function(e){
   openCP(e,{type:'multi'});
+});
+document.getElementById('selRiskBtn').addEventListener('click',function(){
+  var ids=Array.from(selectedTids);
+  if(!ids.length)return;
+  snapshot();
+  // אם כולן כבר מסומנות כסיכון — הכפתור מסיר את הסימון; אחרת מסמן את כולן
+  var allRisk=ids.every(function(id){var t=D.tasks.find(function(x){return +x.id===id;});return t&&t.risk;});
+  ids.forEach(function(id){var t=D.tasks.find(function(x){return +x.id===id;});if(t)t.risk=!allRisk;});
+  clearSel();render();
+  toast(allRisk?'הוסר סימון סיכון':'סומן כסיכון ⚠️ ('+ids.length+' משימות)');
+});
+document.getElementById('selOffProjBtn').addEventListener('click',function(){
+  var ids=Array.from(selectedTids);
+  if(!ids.length)return;
+  openOffProjectModalBatch(ids);
 });
 
 // Lasso
@@ -2453,23 +2470,36 @@ function offProjLabel(t){
   if(!t||!t.offProject)return null;
   return (typeof t.offProject==='string')?t.offProject:'אחר';
 }
-var _offProjTaskId=null;
+var _offProjIds=[];
 function openOffProjectModal(tid){
-  _offProjTaskId=tid;
+  _offProjIds=[tid];
   var t=D.tasks.find(function(x){return x.id===tid;});
   document.getElementById('offProj-name').value=(t&&typeof t.offProject==='string')?t.offProject:'';
   om('offProjModal');
   setTimeout(function(){document.getElementById('offProj-name').focus();},50);
 }
+function openOffProjectModalBatch(ids){
+  _offProjIds=ids.slice();
+  document.getElementById('offProj-name').value='';
+  om('offProjModal');
+  setTimeout(function(){document.getElementById('offProj-name').focus();},50);
+}
 function saveOffProject(){
-  var t=D.tasks.find(function(x){return x.id===_offProjTaskId;});
-  if(!t)return;
-  var name=document.getElementById('offProj-name').value.trim();
+  if(!_offProjIds.length)return;
+  var name=document.getElementById('offProj-name').value.trim()||'אחר';
   snapshot();
-  t.offProject=name||'אחר';
-  cm('offProjModal');render();toast('סומן על חשבון "'+t.offProject+'" ✓');
+  var count=0;
+  _offProjIds.forEach(function(id){
+    var t=D.tasks.find(function(x){return x.id===id;});
+    if(t){t.offProject=name;count++;}
+  });
+  cm('offProjModal');
+  if(_offProjIds.length>1)clearSel();
+  render();
+  toast('סומן על חשבון "'+name+'" ✓'+(count>1?' ('+count+' משימות)':''));
 }
 window.openOffProjectModal=openOffProjectModal;
+window.openOffProjectModalBatch=openOffProjectModalBatch;
 window.saveOffProject=saveOffProject;
 
 function updateTaskEnd(){
