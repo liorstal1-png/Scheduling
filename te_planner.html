@@ -6,6 +6,7 @@
 <title>תכנית עבודה</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
 
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -269,6 +270,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <button class="btn" id="summaryBtn">📊 סיכום</button>
   <button class="btn" id="tasksTableBtn">📋 פירוט משימות</button>
   <button class="btn" id="exportBtn">📥 ייצוא</button>
+  <button class="btn" id="exportGanttBtn" title="ייצוא ויזואלי כמו התוכנית">📊 ייצוא ויזואלי</button>
 </div>
 
 <div class="main">
@@ -2035,6 +2037,174 @@ window.exportSummaryXlsx=function exportSummaryXlsx(){
 };
 
 window.buildSummary=buildSummary;
+
+// ── ייצוא ויזואלי — אקסל שנראה בדיוק כמו התוכנית (צבעים, קבוצות, ציר זמן) ──
+// משתמש ב-ExcelJS ולא ב-SheetJS/xlsx, כי גרסת הקהילה של xlsx לא תומכת בכתיבת
+// צבעי תא (fill) — רק ExcelJS תומך בזה בצד הלקוח.
+window.exportGanttXlsx=async function exportGanttXlsx(){
+  if(typeof ExcelJS==='undefined'){toast('טוען ספריית אקסל... נסה שוב בעוד רגע');return;}
+  toast('בונה קובץ ויזואלי...');
+  try{
+    var wb=new ExcelJS.Workbook();
+    var ws=wb.addWorksheet('תוכנית עבודה');
+
+    var NAME_COL=2; // עמודות 1=סמן צבע, 2=שם
+    ws.getColumn(1).width=3.2;
+    ws.getColumn(2).width=24;
+    for(var wi=0;wi<TL_WEEKS;wi++) ws.getColumn(NAME_COL+1+wi).width=4.3;
+    var LAST_COL=NAME_COL+TL_WEEKS;
+
+    function argb(hex){
+      hex=(hex||'#999999').replace('#','');
+      if(hex.length===3)hex=hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+      return 'FF'+hex.toUpperCase();
+    }
+    function textColorFor(hex){
+      var c=hexToRgb(hex||'#999999');
+      return (0.299*c.r+0.587*c.g+0.114*c.b)<140?'FFFFFFFF':'FF1A1A18';
+    }
+    function fillCell(cell,hex){cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:argb(hex)}};}
+
+    var curRow=1;
+
+    // --- שורת ספרינטים ---
+    ws.getRow(curRow).height=16;
+    (function(){
+      var i=0;
+      while(i<TL_WEEKS){
+        var wd=wkDate(i).getTime(),sp=null;
+        for(var si=0;si<D.sprints.length;si++){var sv=D.sprints[si];if(wd>=pd(sv.start).getTime()&&wd<pd(sv.end).getTime()+7*86400000){sp=sv;break;}}
+        if(!sp){i++;continue;}
+        var s0=i;
+        while(i<TL_WEEKS){
+          var wd2=wkDate(i).getTime(),sp2=null;
+          for(var sj=0;sj<D.sprints.length;sj++){var sv2=D.sprints[sj];if(wd2>=pd(sv2.start).getTime()&&wd2<pd(sv2.end).getTime()+7*86400000){sp2=sv2;break;}}
+          if(!sp2||sp2.id!==sp.id)break;
+          i++;
+        }
+        var c1=NAME_COL+1+s0,c2=NAME_COL+i;
+        if(c2>c1)ws.mergeCells(curRow,c1,curRow,c2);
+        var cell=ws.getCell(curRow,c1);
+        cell.value=sp.name;fillCell(cell,'#1E3A5F');
+        cell.font={color:{argb:'FFFFFFFF'},bold:true,size:9,name:'Arial'};
+        cell.alignment={horizontal:'center',vertical:'middle'};
+      }
+    })();
+    curRow++;
+
+    // --- שורת חודשים ---
+    ws.getRow(curRow).height=14;
+    (function(){
+      var spans=[],cur=-1,cnt=0;
+      for(var i=0;i<TL_WEEKS;i++){
+        var m=wkDate(i).getMonth();
+        if(m!==cur){if(cnt&&spans.length)spans[spans.length-1].count=cnt;spans.push({d:wkDate(i),count:0});cur=m;cnt=0;}
+        cnt++;
+      }
+      if(spans.length)spans[spans.length-1].count=cnt;
+      var col=NAME_COL+1;
+      spans.forEach(function(s){
+        var c1=col,c2=col+s.count-1;
+        if(c2>c1)ws.mergeCells(curRow,c1,curRow,c2);
+        var cell=ws.getCell(curRow,c1);
+        cell.value=MODE_WEEKS?'':(MONTHS[s.d.getMonth()]+' '+s.d.getFullYear());
+        cell.font={bold:true,size:8,color:{argb:'FF888780'},name:'Arial'};
+        cell.alignment={horizontal:'center',vertical:'middle'};
+        col+=s.count;
+      });
+    })();
+    curRow++;
+
+    // --- שורת שבועות ---
+    ws.getRow(curRow).height=14;
+    for(var wi2=0;wi2<TL_WEEKS;wi2++){
+      var d=wkDate(wi2);
+      var cell=ws.getCell(curRow,NAME_COL+1+wi2);
+      cell.value=MODE_WEEKS?('ש'+(wi2+1)):(d.getDate()+'/'+(d.getMonth()+1));
+      cell.font={bold:true,size:7,color:{argb:'FF888780'},name:'Arial'};
+      cell.alignment={horizontal:'center',vertical:'middle'};
+      var isTW=TODAY.getTime()>=d.getTime()&&TODAY.getTime()<d.getTime()+7*86400000;
+      if(isTW&&!MODE_WEEKS)fillCell(cell,'#EBF4FF');
+    }
+    curRow++;
+
+    // --- שורת אבני דרך (אם יש) ---
+    if(D.milestones&&D.milestones.length){
+      ws.getRow(curRow).height=14;
+      D.milestones.forEach(function(ms){
+        var wi=Math.round(diffW(TL_START,pd(ms.date)));
+        if(wi<0||wi>=TL_WEEKS)return;
+        var cell=ws.getCell(curRow,NAME_COL+1+wi);
+        cell.value='🚩'+ms.name;
+        fillCell(cell,ms.color||'#1E3A5F');
+        cell.font={color:{argb:'FFFFFFFF'},bold:true,size:7,name:'Arial'};
+        cell.alignment={horizontal:'center',vertical:'middle'};
+      });
+      curRow++;
+    }
+
+    var bodyStartRow=curRow;
+
+    // --- קבוצות / צוותים / עובדים + משימות ---
+    getRows().forEach(function(row){
+      var r=ws.getRow(curRow);
+      if(row.type==='group'){
+        r.height=17;
+        ws.mergeCells(curRow,1,curRow,LAST_COL);
+        var cell=ws.getCell(curRow,1);
+        cell.value=row.obj.name;
+        fillCell(cell,row.obj.color?lighten(row.obj.color,0.82):'#E4E2DB');
+        cell.font={bold:true,size:10,name:'Arial'};
+        cell.alignment={horizontal:'right',vertical:'middle'};
+      } else if(row.type==='team'){
+        r.height=15;
+        ws.mergeCells(curRow,1,curRow,LAST_COL);
+        var pg=D.groups.find(function(g){return g.id===row.obj.gid;});
+        var cell=ws.getCell(curRow,1);
+        cell.value='    '+row.obj.name;
+        fillCell(cell,pg&&pg.color?lighten(pg.color,0.9):'#F0EEE8');
+        cell.font={bold:true,size:9,color:{argb:'FF555550'},name:'Arial'};
+        cell.alignment={horizontal:'right',vertical:'middle'};
+      } else {
+        r.height=18;
+        var w=row.obj;
+        fillCell(ws.getCell(curRow,1),w.color||'#999999');
+        var nameCell=ws.getCell(curRow,2);
+        nameCell.value=w.name;
+        nameCell.font={size:9,name:'Arial'};
+        nameCell.alignment={horizontal:'right',vertical:'middle'};
+        D.tasks.filter(function(t){return idEq(t.wid,w.id);}).forEach(function(t){
+          var startIdx=Math.round(diffW(TL_START,pd(t.start)));
+          var span=Math.max(1,Math.round(diffW(pd(t.start),pd(t.end))));
+          var endIdx=startIdx+span-1;
+          if(endIdx<0||startIdx>=TL_WEEKS)return; // מחוץ לטווח המוצג
+          var c1=NAME_COL+1+Math.max(0,startIdx), c2=NAME_COL+1+Math.min(TL_WEEKS-1,endIdx);
+          var col=t.color||w.color||'#378ADD';
+          if(c2>c1)ws.mergeCells(curRow,c1,curRow,c2);
+          var cell=ws.getCell(curRow,c1);
+          cell.value=t.name+(t.offProject?' 🔀':'');
+          fillCell(cell,col);
+          cell.font={color:{argb:textColorFor(col)},bold:true,size:7,name:'Arial'};
+          cell.alignment={horizontal:'right',vertical:'middle'};
+        });
+      }
+      curRow++;
+    });
+
+    ws.views=[{rightToLeft:true,state:'frozen',xSplit:2,ySplit:bodyStartRow-1}];
+
+    var buf=await wb.xlsx.writeBuffer();
+    var blob=new Blob([buf],{type:'application/octet-stream'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');a.href=url;a.download='תוכנית_עבודה_ויזואלי.xlsx';a.click();
+    setTimeout(function(){URL.revokeObjectURL(url);},1000);
+    toast('✅ ייצוא ויזואלי הושלם');
+  }catch(e){
+    console.error('exportGanttXlsx error:',e);
+    toast('⚠️ שגיאה בייצוא — נסה שוב');
+  }
+};
+document.getElementById('exportGanttBtn').addEventListener('click',function(){exportGanttXlsx();});
 
 document.getElementById('tasksTableBtn').onclick=function(){
   buildTasksTable();
