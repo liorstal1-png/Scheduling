@@ -271,6 +271,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <button class="btn" id="tasksTableBtn">📋 פירוט משימות</button>
   <button class="btn" id="exportBtn">📥 ייצוא</button>
   <button class="btn" id="exportGanttBtn" title="ייצוא ויזואלי כמו התוכנית">📊 ייצוא ויזואלי</button>
+  <div class="tsep"></div>
+  <button class="btn" id="importTemplateBtn" title="הורד תבנית אקסל לייבוא">📄 תבנית ייבוא</button>
+  <button class="btn" id="importXlsxBtn" title="ייבוא תוכנית מקובץ אקסל">📤 ייבוא מאקסל</button>
+  <input type="file" id="importXlsxInput" accept=".xlsx,.xls" style="display:none;"/>
 </div>
 
 <div class="main">
@@ -497,6 +501,19 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
     <div class="mfoot">
       <button class="btn" onclick="cm('offProjModal')">ביטול</button>
       <button class="btn btn-p" onclick="saveOffProject()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import preview modal -->
+<div class="ov" id="importXlsxModal" onclick="if(event.target===this)cm('importXlsxModal')">
+  <div class="modal" style="max-width:420px;">
+    <div class="mhdr"><span class="mtitle">📤 ייבוא מאקסל</span><button class="mx" onclick="cm('importXlsxModal')">✕</button></div>
+    <div class="mbody" id="importXlsxBody" style="max-height:55vh;overflow-y:auto;"></div>
+    <div class="mfoot" style="flex-wrap:wrap;">
+      <button class="btn" onclick="cm('importXlsxModal')">ביטול</button>
+      <button class="btn" id="importMergeBtn" style="flex:1;">➕ הוסף לקיים</button>
+      <button class="btn btn-p" id="importReplaceBtn" style="flex:1;background:#E24B4A;border-color:#E24B4A;">⚠️ החלף הכל</button>
     </div>
   </div>
 </div>
@@ -2240,6 +2257,251 @@ window.exportGanttXlsx=async function exportGanttXlsx(){
   }
 };
 document.getElementById('exportGanttBtn').addEventListener('click',function(){exportGanttXlsx();});
+
+// ── ייבוא תוכנית מקובץ אקסל ──────────────────────────────────────────────
+function parseExcelDate(val){
+  if(val==null||val==='')return null;
+  if(val instanceof Date){
+    if(isNaN(val.getTime()))return null;
+    var y=val.getUTCFullYear(),m=val.getUTCMonth()+1,day=val.getUTCDate();
+    return y+'-'+(m<10?'0':'')+m+'-'+(day<10?'0':'')+day;
+  }
+  if(typeof val==='number'){
+    var epoch=new Date(Date.UTC(1899,11,30));
+    var d=new Date(epoch.getTime()+Math.round(val)*86400000);
+    return parseExcelDate(d);
+  }
+  var s=String(val).trim();
+  var m2=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m2)return m2[1]+'-'+(m2[2].length<2?'0'+m2[2]:m2[2])+'-'+(m2[3].length<2?'0'+m2[3]:m2[3]);
+  m2=s.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})/);
+  if(m2)return m2[3]+'-'+(m2[2].length<2?'0'+m2[2]:m2[2])+'-'+(m2[1].length<2?'0'+m2[1]:m2[1]);
+  return null;
+}
+
+window.downloadImportTemplate=async function downloadImportTemplate(){
+  if(typeof ExcelJS==='undefined'){toast('טוען ספריית אקסל... נסה שוב בעוד רגע');return;}
+  var wb=new ExcelJS.Workbook();
+  var ws=wb.addWorksheet('ייבוא',{views:[{rightToLeft:true}]});
+  var headers=['קבוצה','צוות','עובד','משימה','התחלה','סיום','פרויקט אחר','הערה','סיכון'];
+  ws.addRow(headers);
+  ws.getRow(1).eachCell(function(cell){
+    cell.font={bold:true,color:{argb:'FFFFFFFF'},name:'Arial'};
+    cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}};
+    cell.alignment={horizontal:'center',vertical:'middle'};
+  });
+  ws.addRow(['פיתוח','Backend','דני כהן','עיצוב API','2026-08-02','2026-08-15','','דוגמה — אפשר למחוק שורה זו','']);
+  ws.getRow(2).eachCell(function(cell){cell.font={italic:true,color:{argb:'FF888780'},name:'Arial'};});
+  ws.columns=[{width:14},{width:14},{width:16},{width:26},{width:12},{width:12},{width:16},{width:28},{width:10}];
+  var buf=await wb.xlsx.writeBuffer();
+  var blob=new Blob([buf],{type:'application/octet-stream'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download='תבנית_ייבוא.xlsx';a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+};
+
+function parseImportRows(wb){
+  var ws=wb.Sheets[wb.SheetNames[0]];
+  var raw=XLSX.utils.sheet_to_json(ws,{defval:''});
+  return raw.map(function(r){
+    return {
+      group:String(r['קבוצה']||'').trim(),
+      team:String(r['צוות']||'').trim(),
+      worker:String(r['עובד']||'').trim(),
+      task:String(r['משימה']||'').trim(),
+      start:parseExcelDate(r['התחלה']),
+      end:parseExcelDate(r['סיום']),
+      offProject:String(r['פרויקט אחר']||'').trim()||null,
+      note:String(r['הערה']||'').trim()||null,
+      risk:/^(כן|yes|true|1|v|✓)$/i.test(String(r['סיכון']||'').trim())
+    };
+  });
+}
+
+// בונה "תוכנית ייבוא" בלי לגעת ב-D בפועל — כדי שאפשר יהיה להציג תצוגה מקדימה
+// ולתת למשתמש לבחור מיזוג/החלפה לפני שמשהו נכתב.
+function buildImportPlan(rows){
+  var org=getOrgFromGantt();
+  function norm(s){return (s||'').trim().toLowerCase();}
+
+  var groupIdSet={};D.groups.forEach(function(g){groupIdSet[g.id]=true;});
+  var teamIdSet={};D.teams.forEach(function(t){teamIdSet[t.id]=true;});
+  var workerByName={};D.workers.forEach(function(w){workerByName[norm(w.name)]=w.id;});
+  var groupByName={};D.groups.forEach(function(g){groupByName[norm(g.name)]=g.id;});
+  var teamByNameGid={};D.teams.forEach(function(t){teamByNameGid[norm(t.name)+'|'+t.gid]=t.id;});
+
+  var plan={newGroups:[],newTeams:[],newWorkers:[],notFound:[],tasks:[],errors:[]};
+  var seq={g:0,t:0,w:0};
+
+  function resolveGroupById(gid){
+    if(gid==null)return null;
+    if(groupIdSet[gid])return gid;
+    var og=(org.groups||[]).find(function(g){return g.id===gid;});
+    plan.newGroups.push({id:gid,name:og?og.name:('קבוצה '+gid),color:(og&&og.color)||COLS[plan.newGroups.length%COLS.length]});
+    groupIdSet[gid]=true;
+    return gid;
+  }
+  function resolveTeamById(tid,gid){
+    if(tid==null)return null;
+    if(teamIdSet[tid])return tid;
+    var ot=(org.teams||[]).find(function(t){return t.id===tid;});
+    plan.newTeams.push({id:tid,name:ot?ot.name:('צוות '+tid),gid:gid});
+    teamIdSet[tid]=true;
+    return tid;
+  }
+  function resolveGroupByName(name){
+    if(!name)return null;
+    var k=norm(name);
+    if(groupByName[k]!=null)return groupByName[k];
+    var id='NEWG_'+(seq.g++);
+    plan.newGroups.push({id:id,name:name.trim(),color:COLS[plan.newGroups.length%COLS.length]});
+    groupByName[k]=id;
+    return id;
+  }
+  function resolveTeamByName(name,gid){
+    if(!name||gid==null)return null;
+    var k=norm(name)+'|'+gid;
+    if(teamByNameGid[k]!=null)return teamByNameGid[k];
+    var id='NEWT_'+(seq.t++);
+    plan.newTeams.push({id:id,name:name.trim(),gid:gid});
+    teamByNameGid[k]=id;
+    return id;
+  }
+  function resolveWorker(name,groupName,teamName){
+    var k=norm(name);
+    if(workerByName[k]!=null)return workerByName[k];
+    // 1) האם קיים ברשימת השיבוץ (מקור האמת)?
+    var orgWorker=(org.workers||[]).find(function(w){return norm(w.name)===k;});
+    if(orgWorker){
+      var gid=orgWorker.group!=null?resolveGroupById(orgWorker.group):null;
+      var tid=orgWorker.team!=null?resolveTeamById(orgWorker.team,gid):null;
+      plan.newWorkers.push({id:orgWorker.id,name:orgWorker.name,color:orgWorker.color||COLS[0],globalId:orgWorker.globalId,gid:gid,tid:tid,fromScheduling:true});
+      workerByName[k]=orgWorker.id;
+      return orgWorker.id;
+    }
+    // 2) לא נמצא בשיבוץ — ייובא בכל זאת כעובד מקומי, עם התראה
+    var gid2=resolveGroupByName(groupName);
+    var tid2=resolveTeamByName(teamName,gid2);
+    var id='NEWW_'+(seq.w++);
+    plan.newWorkers.push({id:id,name:name.trim(),color:COLS[plan.newWorkers.length%COLS.length],gid:gid2,tid:tid2,fromScheduling:false});
+    workerByName[k]=id;
+    plan.notFound.push(name.trim());
+    return id;
+  }
+
+  rows.forEach(function(row,idx){
+    if(!row.worker||!row.task||!row.start||!row.end){plan.errors.push('שורה '+(idx+2)+': חסרים נתונים (עובד/משימה/תאריכים)');return;}
+    if(row.end<row.start){plan.errors.push('שורה '+(idx+2)+': תאריך סיום לפני תאריך התחלה');return;}
+    var wid=resolveWorker(row.worker,row.group,row.team);
+    plan.tasks.push({wid:wid,name:row.task,start:row.start,end:row.end,offProject:row.offProject,note:row.note,risk:row.risk});
+  });
+
+  return plan;
+}
+
+function renderImportPreview(plan){
+  var body=document.getElementById('importXlsxBody');
+  var html='<div style="margin-bottom:8px;font-size:13px;"><b>'+plan.tasks.length+'</b> משימות נמצאו לייבוא</div>';
+  if(plan.newGroups.length)html+='<div style="margin-bottom:6px;font-size:12px;">🗂️ קבוצות חדשות: '+plan.newGroups.map(function(g){return g.name;}).join(', ')+'</div>';
+  if(plan.newTeams.length)html+='<div style="margin-bottom:6px;font-size:12px;">👥 צוותים חדשים: '+plan.newTeams.map(function(t){return t.name;}).join(', ')+'</div>';
+  if(plan.newWorkers.length)html+='<div style="margin-bottom:6px;font-size:12px;">🧑 עובדים חדשים: '+plan.newWorkers.map(function(w){return w.name+(w.fromScheduling?'':' ⚠️');}).join(', ')+'</div>';
+  if(plan.notFound.length){
+    html+='<div style="margin-bottom:6px;padding:8px;background:#FFF3E0;border-radius:var(--r);color:#8a5a00;font-size:12px;">';
+    html+='⚠️ העובדים הבאים לא נמצאו ברשימת השיבוץ — ייובאו כעובדים מקומיים בלבד: '+plan.notFound.join(', ');
+    html+='</div>';
+  }
+  if(plan.errors.length){
+    html+='<div style="margin-bottom:6px;padding:8px;background:#FFEBEE;border-radius:var(--r);color:#B71C1C;font-size:12px;">';
+    html+='⚠️ '+plan.errors.length+' שורות דולגו:<br>'+plan.errors.join('<br>');
+    html+='</div>';
+  }
+  if(!plan.tasks.length)html+='<div style="color:var(--mut);">אין מה לייבא — בדוק שהעמודות תואמות לתבנית.</div>';
+  body.innerHTML=html;
+}
+
+var _pendingImportPlan=null;
+async function handleImportFile(file){
+  if(!file)return;
+  if(typeof XLSX==='undefined'){toast('טוען ספריית אקסל... נסה שוב בעוד רגע');return;}
+  toast('קורא קובץ...');
+  await loadGanttData(); // ודא שיש לנו נתוני שיבוץ עדכניים להתאמת עובדים
+  try{
+    var buf=await file.arrayBuffer();
+    var wb=XLSX.read(buf,{type:'array',cellDates:true});
+    var rows=parseImportRows(wb);
+    if(!rows.length){toast('⚠️ לא נמצאו שורות בקובץ');return;}
+    var plan=buildImportPlan(rows);
+    _pendingImportPlan=plan;
+    renderImportPreview(plan);
+    om('importXlsxModal');
+  }catch(e){
+    console.error('import parse error:',e);
+    toast('⚠️ שגיאה בקריאת הקובץ');
+  }
+}
+
+function applyImport(mode){
+  var plan=_pendingImportPlan;
+  if(!plan||!plan.tasks.length)return;
+  snapshot();
+  if(mode==='replace'){
+    D.groups=[];D.teams=[];D.workers=[];D.tasks=[];D.deps=[];
+  }
+  var idMap={};
+  plan.newGroups.forEach(function(g){
+    if(typeof g.id==='string'&&g.id.indexOf('NEWG_')===0){
+      var realId=D.nextGid++;
+      idMap[g.id]=realId;
+      D.groups.push({id:realId,name:g.name,color:g.color});
+    }else{
+      if(!D.groups.find(function(x){return x.id===g.id;}))D.groups.push({id:g.id,name:g.name,color:g.color});
+      if(D.nextGid<=g.id)D.nextGid=g.id+1;
+    }
+  });
+  plan.newTeams.forEach(function(t){
+    var gid=idMap[t.gid]!==undefined?idMap[t.gid]:t.gid;
+    if(typeof t.id==='string'&&t.id.indexOf('NEWT_')===0){
+      var realId=D.nextTmid++;
+      idMap[t.id]=realId;
+      D.teams.push({id:realId,name:t.name,gid:gid});
+    }else{
+      if(!D.teams.find(function(x){return x.id===t.id;}))D.teams.push({id:t.id,name:t.name,gid:gid});
+      if(D.nextTmid<=t.id)D.nextTmid=t.id+1;
+    }
+  });
+  plan.newWorkers.forEach(function(w){
+    var gid=idMap[w.gid]!==undefined?idMap[w.gid]:w.gid;
+    var tid=idMap[w.tid]!==undefined?idMap[w.tid]:w.tid;
+    if(typeof w.id==='string'&&(w.id.indexOf('NEWW_')===0)){
+      var realId=D.nextWid++;
+      idMap[w.id]=realId;
+      D.workers.push({id:realId,name:w.name,color:w.color,gid:gid,tid:tid});
+    }else{
+      if(!D.workers.find(function(x){return idEq(x.id,w.id);}))D.workers.push({id:w.id,name:w.name,color:w.color,globalId:w.globalId,gid:gid,tid:tid});
+    }
+  });
+  plan.tasks.forEach(function(t){
+    var wid=idMap[t.wid]!==undefined?idMap[t.wid]:t.wid;
+    D.tasks.push({id:D.nextTid++,wid:wid,name:t.name,start:t.start,end:t.end,color:null,offProject:t.offProject||null,note:t.note||null,risk:!!t.risk});
+  });
+  cm('importXlsxModal');
+  render();
+  toast('✅ יובאו '+plan.tasks.length+' משימות'+(plan.notFound.length?(' — ⚠️ '+plan.notFound.length+' עובדים חדשים לא נמצאו בשיבוץ'):''));
+  _pendingImportPlan=null;
+}
+
+document.getElementById('importTemplateBtn').addEventListener('click',function(){downloadImportTemplate();});
+document.getElementById('importXlsxBtn').addEventListener('click',function(){document.getElementById('importXlsxInput').click();});
+document.getElementById('importXlsxInput').addEventListener('change',function(e){
+  var f=e.target.files&&e.target.files[0];
+  handleImportFile(f);
+  e.target.value=''; // מאפשר לבחור שוב את אותו קובץ בפעם הבאה
+});
+document.getElementById('importMergeBtn').addEventListener('click',function(){applyImport('merge');});
+document.getElementById('importReplaceBtn').addEventListener('click',function(){
+  if(!confirm('פעולה זו תמחק את כל הנתונים הקיימים בתוכנית ותחליף אותם בנתונים מהקובץ. להמשיך?'))return;
+  applyImport('replace');
+});
 
 document.getElementById('tasksTableBtn').onclick=function(){
   buildTasksTable();
