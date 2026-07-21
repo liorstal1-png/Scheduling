@@ -267,14 +267,11 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <div class="spacer"></div>
   <button class="btn" id="undoBtn" title="Ctrl+Z">↩ ביטול</button>
   <button class="btn" id="clearDepsBtn" title="נקה תלויות">🔗 נקה תלויות</button>
-  <button class="btn" id="summaryBtn">📊 סיכום</button>
-  <button class="btn" id="tasksTableBtn">📋 פירוט משימות</button>
-  <button class="btn" id="exportBtn">📥 ייצוא</button>
-  <button class="btn" id="exportGanttBtn" title="ייצוא ויזואלי כמו התוכנית">📊 ייצוא ויזואלי</button>
-  <div class="tsep"></div>
-  <button class="btn" id="importTemplateBtn" title="הורד תבנית אקסל לייבוא">📄 תבנית ייבוא</button>
-  <button class="btn" id="importXlsxBtn" title="ייבוא תוכנית מקובץ אקסל">📤 ייבוא מאקסל</button>
+  <button class="btn" id="reportsBtn">📊 דוחות</button>
+  <button class="btn" id="exportImportBtn">📤 ייצוא/ייבוא</button>
   <input type="file" id="importXlsxInput" accept=".xlsx,.xls" style="display:none;"/>
+  <div class="tsep"></div>
+  <button class="btn" id="sprintCutBtn" title="הצג את ציר הזמן בחתך ספרינטים">📋 חתך ספרינטים</button>
 </div>
 
 <div class="main">
@@ -447,6 +444,18 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <div class="ci" id="sprCtxEdit">✏️ ערוך ספרינט</div>
   <div class="ci del" id="sprCtxDel">🗑 מחק ספרינט</div>
 </div>
+<div class="ctx" id="reportsMenu">
+  <div class="ci" id="reportsMenu-summary">📊 סיכום</div>
+  <div class="ci" id="reportsMenu-tasksTable">📋 פירוט משימות</div>
+  <div class="ci" id="reportsMenu-sprintReq">🏁 דרישות ספרינט</div>
+</div>
+<div class="ctx" id="exportImportMenu">
+  <div class="ci" id="eiMenu-exportCsv">📥 ייצוא CSV</div>
+  <div class="ci" id="eiMenu-exportGantt">📊 ייצוא ויזואלי (אקסל)</div>
+  <div class="ci-sep"></div>
+  <div class="ci" id="eiMenu-template">📄 הורד תבנית ייבוא</div>
+  <div class="ci" id="eiMenu-import">📤 ייבוא מאקסל</div>
+</div>
 <div class="cpop" id="cpop"></div>
 <div class="lasso" id="lasso" style="display:none"></div>
 <!-- Summary modal -->
@@ -460,6 +469,17 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
       </div>
     </div>
     <div class="mbody" id="summaryBody" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Sprint requirements modal -->
+<div class="ov" id="sprintReqModal" onclick="if(event.target===this)document.getElementById('sprintReqModal').classList.remove('open')">
+  <div class="modal" style="max-width:480px;">
+    <div class="mhdr">
+      <span class="mtitle">🏁 דרישות ספרינט</span>
+      <button class="mx" onclick="document.getElementById('sprintReqModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="mbody" id="sprintReqBody" style="max-height:60vh;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -708,6 +728,7 @@ function workerShade(base,idx,total){
   return hslToHex(newH,hsl.s,newL);
 }
 // get effective color for a worker (from hierarchy)
+var SPRINT_CUT_MODE=false;
 function render(){
   var TW=totalW(),WW_=WW();
   document.getElementById('tlinner').style.width=TW+'px';
@@ -716,13 +737,17 @@ function render(){
   renderWeeks(TW,WW_);
   var mr2=document.getElementById('msrow');if(mr2)mr2.style.width=TW+'px';
   renderSidebar();
-  renderBody(TW,WW_);
-  renderMilestones();
+  if(SPRINT_CUT_MODE){
+    renderSprintCutBody(TW,WW_);
+  }else{
+    renderBody(TW,WW_);
+    renderMilestones();
+    requestAnimationFrame(redrawDeps);
+  }
   saveData();
   // clean up deps whose tasks no longer exist
   var taskIds=D.tasks.map(function(t){return t.id;});
   D.deps=D.deps.filter(function(d){return taskIds.indexOf(d.fromTid)!==-1&&taskIds.indexOf(d.toTid)!==-1;});
-  requestAnimationFrame(redrawDeps);
 }
 
 function getRows(){
@@ -1160,6 +1185,52 @@ function renderBody(TW,WW_){
   });
 }
 
+// ── תצוגת "חתך ספרינטים" — במקום עובדים/משימות, כרטיס דרישות לכל ספרינט ────
+function renderSprintCutBody(TW,WW_){
+  document.querySelectorAll('.milestone-line,.milestone-flag,.sprint-line,.sprint-flag').forEach(function(el){el.remove();});
+  var tb=document.getElementById('tlbody');
+  tb.innerHTML='';tb.style.width=TW+'px';
+  var wrapH=Math.max(420,(document.getElementById('tlwrap').clientHeight||600)-20);
+  tb.style.height=wrapH+'px';
+  tb.style.position='relative';
+
+  var i=0,any=false;
+  while(i<TL_WEEKS){
+    var sp=resolveWeekSprint(i);
+    if(!sp){i++;continue;}
+    var s0=i;
+    while(i<TL_WEEKS){
+      var sp2=resolveWeekSprint(i);
+      if(!sp2||sp2.id!==sp.id)break;
+      i++;
+    }
+    var cnt=i-s0;
+    var right=dateRight(fd(wkDate(s0)));
+    var width=cnt*WW_-4;
+    if(width<10)continue;
+    any=true;
+
+    var req=computeSprintRequirements(sp);
+    var col=document.createElement('div');
+    col.style.cssText='position:absolute;right:'+right+'px;top:6px;width:'+width+'px;height:calc(100% - 12px);background:#F5FBF8;border:1px solid #cfe9de;border-radius:8px;padding:8px;overflow-y:auto;box-sizing:border-box;';
+    var title=document.createElement('div');
+    title.style.cssText='font-weight:700;font-size:12px;color:#1D9E75;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #cfe9de;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+    title.textContent='🏁 '+sp.name;
+    col.appendChild(title);
+    var list=document.createElement('div');
+    list.style.cssText='font-size:11px;line-height:1.8;';
+    list.innerHTML=sprintReqHtml(sp,req,true);
+    col.appendChild(list);
+    tb.appendChild(col);
+  }
+  if(!any){
+    var empty=document.createElement('div');
+    empty.style.cssText='position:absolute;right:20px;top:20px;color:var(--mut);font-size:13px;';
+    empty.textContent='אין ספרינטים מוגדרים בטווח המוצג — הוסף ספרינטים (+ ספרינט בסרגל העליון) כדי לראות כאן דרישות';
+    tb.appendChild(empty);
+  }
+}
+
 // ── DRAG & RESIZE ──────────────────────────────────────────────────────────
 function resolvePush(wid){
   var tasks=D.tasks.filter(function(x){return x.wid===wid;});
@@ -1462,6 +1533,94 @@ function renderMilestones(){
   });
 }
 
+// ── דרישות ספרינט: מה נדרש (סיום משימות / % התקדמות) עד סוף כל ספרינט ──────
+function computeSprintRequirements(sprint){
+  var sStart=pd(sprint.start), sEnd=pd(sprint.end);
+  var completing=[], inProgress=[];
+  D.tasks.forEach(function(t){
+    var ts=pd(t.start), te=pd(t.end);
+    var w=D.workers.find(function(x){return idEq(x.id,t.wid);});
+    var wname=w?w.name:'';
+    if(te.getTime()>=sStart.getTime()&&te.getTime()<=sEnd.getTime()){
+      completing.push({task:t,workerName:wname});
+    }else if(ts.getTime()<=sEnd.getTime()&&te.getTime()>sEnd.getTime()){
+      var total=te.getTime()-ts.getTime();
+      var done=Math.min(sEnd.getTime(),te.getTime())-ts.getTime();
+      var pct=total>0?Math.round(done/total*100):100;
+      if(pct>0)inProgress.push({task:t,workerName:wname,pct:pct});
+    }
+  });
+  completing.sort(function(a,b){return a.task.name.localeCompare(b.task.name);});
+  inProgress.sort(function(a,b){return b.pct-a.pct;});
+  return {completing:completing,inProgress:inProgress};
+}
+
+function sprintReqHtml(sp,req,compact){
+  var html=compact?'':('<b>'+sp.name+'</b><br>');
+  if(req.completing.length){
+    html+=(compact?'':'<u>מסתיים:</u><br>');
+    req.completing.forEach(function(c){html+='✅ '+c.task.name+(c.workerName?(' ('+c.workerName+')'):'')+'<br>';});
+  }
+  if(req.inProgress.length){
+    html+=(compact?'':'<u>בתהליך:</u><br>');
+    req.inProgress.forEach(function(p){html+='⏳ '+p.pct+'% מ"'+p.task.name+'"'+(p.workerName?(' ('+p.workerName+')'):'')+'<br>';});
+  }
+  if(!req.completing.length&&!req.inProgress.length)html+='<span style="opacity:.7;">אין דרישות רשומות</span>';
+  return html;
+}
+
+// פותר ספרינט-לפי-שבוע משותף — תומך גם בהגדרה גלובלית אוטומטית (te_sprint_config)
+// וגם בספרינטים ידניים (D.sprints), בדיוק כמו renderSprints() עצמה. חשוב שכל
+// הפיצ'רים סביב ספרינטים (חתך, קווים, יומן דרישות) ישתמשו במקור האמת הזה.
+function resolveWeekSprint(i){
+  var cfg;
+  try{cfg=JSON.parse(localStorage.getItem('te_sprint_config')||'{}');}catch(e){cfg={};}
+  if(cfg&&cfg.startDate)return getSprintForWeek(i);
+  var wd=wkDate(i).getTime();
+  for(var si=0;si<D.sprints.length;si++){
+    var sv=D.sprints[si];
+    if(wd>=pd(sv.start).getTime()&&wd<=pd(sv.end).getTime())return sv;
+  }
+  return null;
+}
+function getVisibleSprints(){
+  var result=[],seen={};
+  for(var i=0;i<TL_WEEKS;i++){
+    var sp=resolveWeekSprint(i);
+    if(sp&&!seen[sp.id]){seen[sp.id]=true;result.push(sp);}
+  }
+  return result;
+}
+
+function buildSprintReqBody(){
+  var body=document.getElementById('sprintReqBody');
+  if(!body)return;
+  var sorted=getVisibleSprints().sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();});
+  var html='';
+  sorted.forEach(function(sp){
+    var req=computeSprintRequirements(sp);
+    if(!req.completing.length&&!req.inProgress.length)return;
+    html+='<div style="margin-bottom:12px;">';
+    html+='<div style="padding:7px 10px;background:#1D9E75;color:#fff;border-radius:var(--r);font-weight:700;font-size:13px;">🏁 '+sp.name+' <span style="font-weight:400;font-size:11px;opacity:.85;">('+sp.start+' → '+sp.end+')</span></div>';
+    html+='<div style="padding:8px 10px;font-size:12px;line-height:1.8;">'+sprintReqHtml(sp,req,true)+'</div>';
+    html+='</div>';
+  });
+  var anySprintsAtAll=sorted.length>0;
+  body.innerHTML=html||('<div style="color:var(--mut);">'+(anySprintsAtAll?'אין לספרינטים המוצגים דרישות רשומות':'אין ספרינטים מוגדרים בטווח המוצג')+'</div>');
+}
+function openSprintReqModal(){
+  buildSprintReqBody();
+  document.getElementById('sprintReqModal').classList.add('open');
+}
+window.openSprintReqModal=openSprintReqModal;
+document.getElementById('reportsMenu-sprintReq').addEventListener('click',function(){closeCtx();openSprintReqModal();});
+document.getElementById('sprintCutBtn').addEventListener('click',function(){
+  SPRINT_CUT_MODE=!SPRINT_CUT_MODE;
+  this.textContent=SPRINT_CUT_MODE?'📊 תצוגה רגילה':'📋 חתך ספרינטים';
+  this.classList.toggle('btn-p',SPRINT_CUT_MODE);
+  render();
+});
+
 function openMsModal(id,preDate){
   _msId=id||null;
   var ms=id?D.milestones.find(function(x){return x.id===id;}):null;
@@ -1684,8 +1843,19 @@ var _sync=false;
 })();
 
 // ── CONTEXT MENUS ──────────────────────────────────────────────────────────
-function closeCtx(){['ctxMenu','sprCtx'].forEach(function(id){var m=document.getElementById(id);m.style.display='none';m.classList.remove('open');});}
+function closeCtx(){document.querySelectorAll('.ctx').forEach(function(m){m.style.display='none';m.classList.remove('open');});}
 document.addEventListener('click',closeCtx);
+function openToolbarMenu(e,menuId){
+  e.stopPropagation();
+  closeCtx();
+  var btn=e.currentTarget;
+  var r=btn.getBoundingClientRect();
+  var menu=document.getElementById(menuId);
+  menu.style.cssText='display:block;top:'+(r.bottom+4)+'px;right:'+(window.innerWidth-r.right)+'px;';
+  menu.classList.add('open');
+}
+document.getElementById('reportsBtn').addEventListener('click',function(e){openToolbarMenu(e,'reportsMenu');});
+document.getElementById('exportImportBtn').addEventListener('click',function(e){openToolbarMenu(e,'exportImportMenu');});
 function openBlockCtx(e,tid){
   var menu=document.getElementById('ctxMenu');menu.innerHTML='';
   var t=D.tasks.find(function(x){return x.id===tid;});
@@ -1951,10 +2121,11 @@ document.getElementById('modeBtn').onclick=function(){MODE_WEEKS=!MODE_WEEKS;thi
 document.getElementById('undoBtn').onclick=undo;
 document.getElementById('addMsBtn').onclick=function(){openMsModal(null);};
 document.getElementById('clearDepsBtn').onclick=function(){snapshot();D.deps=[];render();toast('תלויות נוקו');};
-document.getElementById('summaryBtn').onclick=function(){
+document.getElementById('reportsMenu-summary').addEventListener('click',function(){
+  closeCtx();
   buildSummary();
   document.getElementById('summaryModal').classList.add('open');
-};
+});
 
 function buildSummary(){
   var body=document.getElementById('summaryBody');
@@ -2256,7 +2427,7 @@ window.exportGanttXlsx=async function exportGanttXlsx(){
     toast('⚠️ שגיאה בייצוא — נסה שוב');
   }
 };
-document.getElementById('exportGanttBtn').addEventListener('click',function(){exportGanttXlsx();});
+document.getElementById('eiMenu-exportGantt').addEventListener('click',function(){closeCtx();exportGanttXlsx();});
 
 // ── ייבוא תוכנית מקובץ אקסל ──────────────────────────────────────────────
 function parseExcelDate(val){
@@ -2283,14 +2454,14 @@ window.downloadImportTemplate=async function downloadImportTemplate(){
   if(typeof ExcelJS==='undefined'){toast('טוען ספריית אקסל... נסה שוב בעוד רגע');return;}
   var wb=new ExcelJS.Workbook();
   var ws=wb.addWorksheet('ייבוא',{views:[{rightToLeft:true}]});
-  var headers=['קבוצה','צוות','עובד','משימה','התחלה','סיום','פרויקט אחר','הערה','סיכון'];
+  var headers=['קבוצה','צוות','עובד','משימה','התחלה','שבועות','פרויקט אחר','הערה','סיכון'];
   ws.addRow(headers);
   ws.getRow(1).eachCell(function(cell){
     cell.font={bold:true,color:{argb:'FFFFFFFF'},name:'Arial'};
     cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}};
     cell.alignment={horizontal:'center',vertical:'middle'};
   });
-  ws.addRow(['פיתוח','Backend','דני כהן','עיצוב API','2026-08-02','2026-08-15','','דוגמה — אפשר למחוק שורה זו','']);
+  ws.addRow(['פיתוח','Backend','דני כהן','עיצוב API','2026-08-02',2,'','דוגמה — אפשר למחוק שורה זו','']);
   ws.getRow(2).eachCell(function(cell){cell.font={italic:true,color:{argb:'FF888780'},name:'Arial'};});
   ws.columns=[{width:14},{width:14},{width:16},{width:26},{width:12},{width:12},{width:16},{width:28},{width:10}];
   var buf=await wb.xlsx.writeBuffer();
@@ -2304,13 +2475,18 @@ function parseImportRows(wb){
   var ws=wb.Sheets[wb.SheetNames[0]];
   var raw=XLSX.utils.sheet_to_json(ws,{defval:''});
   return raw.map(function(r){
+    var start=parseExcelDate(r['התחלה']);
+    var weeksRaw=r['שבועות'];
+    var weeks=parseInt(weeksRaw,10);
+    var end=(start&&weeks>0)?fd(addD(addW(pd(start),weeks-1),6)):null;
     return {
       group:String(r['קבוצה']||'').trim(),
       team:String(r['צוות']||'').trim(),
       worker:String(r['עובד']||'').trim(),
       task:String(r['משימה']||'').trim(),
-      start:parseExcelDate(r['התחלה']),
-      end:parseExcelDate(r['סיום']),
+      start:start,
+      weeks:weeks,
+      end:end,
       offProject:String(r['פרויקט אחר']||'').trim()||null,
       note:String(r['הערה']||'').trim()||null,
       risk:/^(כן|yes|true|1|v|✓)$/i.test(String(r['סיכון']||'').trim())
@@ -2390,8 +2566,8 @@ function buildImportPlan(rows){
   }
 
   rows.forEach(function(row,idx){
-    if(!row.worker||!row.task||!row.start||!row.end){plan.errors.push('שורה '+(idx+2)+': חסרים נתונים (עובד/משימה/תאריכים)');return;}
-    if(row.end<row.start){plan.errors.push('שורה '+(idx+2)+': תאריך סיום לפני תאריך התחלה');return;}
+    if(!row.worker||!row.task||!row.start){plan.errors.push('שורה '+(idx+2)+': חסרים נתונים (עובד/משימה/תאריך התחלה)');return;}
+    if(!row.weeks||row.weeks<1){plan.errors.push('שורה '+(idx+2)+': "שבועות" חסר או לא תקין');return;}
     var wid=resolveWorker(row.worker,row.group,row.team);
     plan.tasks.push({wid:wid,name:row.task,start:row.start,end:row.end,offProject:row.offProject,note:row.note,risk:row.risk});
   });
@@ -2490,8 +2666,8 @@ function applyImport(mode){
   _pendingImportPlan=null;
 }
 
-document.getElementById('importTemplateBtn').addEventListener('click',function(){downloadImportTemplate();});
-document.getElementById('importXlsxBtn').addEventListener('click',function(){document.getElementById('importXlsxInput').click();});
+document.getElementById('eiMenu-template').addEventListener('click',function(){closeCtx();downloadImportTemplate();});
+document.getElementById('eiMenu-import').addEventListener('click',function(){closeCtx();document.getElementById('importXlsxInput').click();});
 document.getElementById('importXlsxInput').addEventListener('change',function(e){
   var f=e.target.files&&e.target.files[0];
   handleImportFile(f);
@@ -2503,10 +2679,11 @@ document.getElementById('importReplaceBtn').addEventListener('click',function(){
   applyImport('replace');
 });
 
-document.getElementById('tasksTableBtn').onclick=function(){
+document.getElementById('reportsMenu-tasksTable').addEventListener('click',function(){
+  closeCtx();
   buildTasksTable();
   document.getElementById('tasksTableModal').classList.add('open');
-};
+});
 
 function buildTasksTable(){
   var body=document.getElementById('tasksTableBody');
@@ -2592,7 +2769,8 @@ window.exportTasksTableXlsx=function(){
   toast('Excel יוצא');
 };
 
-document.getElementById('exportBtn').onclick=function(){
+document.getElementById('eiMenu-exportCsv').addEventListener('click',function(){
+  closeCtx();
   var rows=[['משימה','עובד','התחלה','סיום','תלות','פרויקט אחר']];
   D.tasks.forEach(function(t){
     var w=D.workers.find(function(x){return x.id===t.wid;});
@@ -2605,7 +2783,7 @@ document.getElementById('exportBtn').onclick=function(){
   var csv=rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);a.download='תכנית_עבודה.csv';a.click();
   toast('✅ ייצוא הושלם');
-};
+});
 
 // ── INIT ───────────────────────────────────────────────────────────────────
 var _urlPid=(new URLSearchParams(window.location.search)).get('pid');
