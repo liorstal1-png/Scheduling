@@ -1560,6 +1560,14 @@ function distToCurve(px,py,x1,y1,x2,y2){
 function blkAnchor(tid,side){
   var blk=document.querySelector('.blk[data-tid="'+String(tid)+'"]');
   if(!blk)return null;
+  // אם תאריכי המשימה בכלל לא חופפים לטווח שמוצג כרגע בציר הזמן (למשל המשימה
+  // "עברה" ולא נכנסת יותר לטווח) — התלות שלה צריכה להיחתך בדיוק כמו שהמשימה
+  // עצמה לא הייתה מוצגת, ולא להישאר כקו תלוי-באוויר.
+  var t=D.tasks.find(function(x){return x.id===tid;});
+  if(t){
+    var s=diffW(TL_START,pd(t.start)), e=diffW(TL_START,pd(t.end));
+    if(e<0||s>TL_WEEKS)return null;
+  }
   var r=blk.getBoundingClientRect();
   return {x:side==='start'?r.right:r.left, y:r.top+r.height/2, visible:(r.right>0&&r.left<window.innerWidth&&r.bottom>0&&r.top<window.innerHeight)};
 }
