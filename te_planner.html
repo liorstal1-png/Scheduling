@@ -739,6 +739,7 @@ function render(){
   renderSidebar();
   if(SPRINT_CUT_MODE){
     renderSprintCutBody(TW,WW_);
+    if(_depCtx)_depCtx.clearRect(0,0,_depCanvas.width,_depCanvas.height); // אין תאי משימות בתצוגה הזו — לנקות קווי תלות ישנים
   }else{
     renderBody(TW,WW_);
     renderMilestones();
