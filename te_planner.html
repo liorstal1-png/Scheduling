@@ -93,8 +93,6 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .blk.drag{opacity:.7;cursor:grabbing;z-index:100;}
 .blk.sel{outline:2px solid #fff;outline-offset:-2px;filter:brightness(1.15);}
 .btitle{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;font-size:11px;pointer-events:none;}
-.blk-check{cursor:pointer;font-size:13px;flex-shrink:0;line-height:1;opacity:.9;}
-.blk-check:hover{opacity:1;transform:scale(1.1);}
 .blk-note-dot{font-size:13px;font-weight:900;color:#FF4444;flex-shrink:0;pointer-events:auto;line-height:1;text-shadow:0 0 4px rgba(0,0,0,.4);cursor:default;padding:0 3px;}
 .note-tooltip{position:fixed;background:#1E2A3A;color:#fff;border-radius:8px;padding:10px 14px;font-family:'Heebo',sans-serif;font-size:13px;line-height:1.6;max-width:220px;white-space:pre-wrap;pointer-events:none;z-index:600;box-shadow:0 4px 16px rgba(0,0,0,.35);direction:rtl;display:none;}
 .rhandle-r{position:absolute;right:0;top:0;bottom:0;width:8px;cursor:col-resize;z-index:2;}
@@ -1095,15 +1093,8 @@ function renderBody(TW,WW_){
         var col=t.color||(primaryW?primaryW.color:row.obj.color);
         var blk=document.createElement('div');blk.className='blk'+(selectedTids.has(+t.id)?' sel':'');blk.dataset.tid=String(t.id);
         blk.style.cssText='right:'+r+'px;width:'+bw+'px;background:'+col+';'+(t.completed?'outline:3px solid #1D9E75;outline-offset:-2px;':(t.risk?'outline:2px solid #E24B4A;outline-offset:-2px;':''));
-        blk.innerHTML='<div class="rhandle-r"></div><div class="dep-dot dep-dot-r" data-tid="'+String(t.id)+'" data-side="start"></div><span class="blk-check" title="סמן כהושלם">'+(t.completed?'☑':'☐')+'</span><span class="btitle">'+t.name+'</span>'+(t.note?'<span class="blk-note-dot" title="" data-note="'+t.note.replace(/"/g,'&quot;')+'">!</span>':'')+'<button class="blk-opts">⋯</button><button class="blk-del" title="מחק">✕</button><div class="dep-dot dep-dot-l" data-tid="'+String(t.id)+'" data-side="end"></div><div class="rhandle-l"></div>';
+        blk.innerHTML='<div class="rhandle-r"></div><div class="dep-dot dep-dot-r" data-tid="'+String(t.id)+'" data-side="start"></div><span class="btitle">'+t.name+'</span>'+(t.note?'<span class="blk-note-dot" title="" data-note="'+t.note.replace(/"/g,'&quot;')+'">!</span>':'')+'<button class="blk-opts">⋯</button><button class="blk-del" title="מחק">✕</button><div class="dep-dot dep-dot-l" data-tid="'+String(t.id)+'" data-side="end"></div><div class="rhandle-l"></div>';
         blk.querySelector('.blk-opts').addEventListener('click',function(e){e.stopPropagation();openBlockCtx(e,t.id);});
-        blk.querySelector('.blk-check').addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault();});
-        blk.querySelector('.blk-check').addEventListener('click',function(e){
-          e.stopPropagation();
-          snapshot();
-          t.completed=!t.completed;
-          render();
-        });
         blk.querySelectorAll('.dep-dot').forEach(function(dot){
           if(dot.dataset.side==='end'){
             // רק dep-dot-l (סוף משימה) מאפשר גרירה
@@ -1121,12 +1112,12 @@ function renderBody(TW,WW_){
         blk.querySelector('.rhandle-r').addEventListener('mousedown',(function(b,id){return function(e){startResizeR(e,id,b);};})(blk,t.id));
         blk.querySelector('.rhandle-l').addEventListener('mousedown',(function(b,id){return function(e){startResizeL(e,id,b);};})(blk,t.id));
         blk.addEventListener('mousedown',function(e){
-          if(e.target.classList.contains('rhandle-r')||e.target.classList.contains('rhandle-l')||e.target.classList.contains('blk-opts')||e.target.classList.contains('blk-del')||e.target.classList.contains('blk-check')||e.target.classList.contains('dep-dot'))return;
+          if(e.target.classList.contains('rhandle-r')||e.target.classList.contains('rhandle-l')||e.target.classList.contains('blk-opts')||e.target.classList.contains('blk-del')||e.target.classList.contains('dep-dot'))return;
           _lastClickedTid=+t.id;
           startDrag(e,t.id,row.obj,blk);
         });
         blk.addEventListener('click',function(e){
-          if(e.target.classList.contains('rhandle-r')||e.target.classList.contains('rhandle-l')||e.target.classList.contains('blk-opts')||e.target.classList.contains('blk-del')||e.target.classList.contains('blk-check')||e.target.classList.contains('dep-dot'))return;
+          if(e.target.classList.contains('rhandle-r')||e.target.classList.contains('rhandle-l')||e.target.classList.contains('blk-opts')||e.target.classList.contains('blk-del')||e.target.classList.contains('dep-dot'))return;
           e.stopPropagation();
           _lastClickedTid=+t.id;
           if(e.ctrlKey||e.metaKey){if(selectedTids.has(+t.id))selectedTids.delete(t.id);else selectedTids.add(+t.id);}
@@ -2145,22 +2136,36 @@ function buildSummary(){
     if(directWeeks>0){teamRows.push({name:'ישיר לקבוצה',weeks:directWeeks,hours:directWeeks*HPW,completed:directCompleted});gWeeks+=directWeeks;gCompleted+=directCompleted;}
     if(gWeeks>0){rows.push({name:g.name,weeks:gWeeks,hours:gWeeks*HPW,completed:gCompleted,teams:teamRows});totalWeeks+=gWeeks;totalHours+=gWeeks*HPW;totalCompleted+=gCompleted;}
   });
-  function completedNote(weeks,completed){
-    return completed>0?(' <span style="color:#1D9E75;font-weight:600;">('+completed+' הושלמו ✓)</span>'):'';
+  function statLine(name,weeks,hours,completed,isGroup){
+    var remaining=weeks-completed;
+    var remHours=hours-(completed*HPW);
+    var nameStyle=isGroup?'':'color:var(--mut);';
+    var wrapStyle=isGroup?'padding:7px 10px;background:var(--bg);border-radius:var(--r);font-weight:700;font-size:13px;':'padding:6px 10px 6px 20px;font-size:12px;border-bottom:1px solid var(--brd);';
+    var html='<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px;'+wrapStyle+'">';
+    html+='<span style="'+nameStyle+'">'+name+'</span>';
+    html+='<div style="display:flex;gap:12px;font-size:'+(isGroup?'12px':'11px')+';">';
+    html+='<span style="color:#1D9E75;font-weight:600;">✅ הושלם: '+completed+' שב׳ · '+(completed*HPW)+' שע׳</span>';
+    html+='<span style="color:'+(remaining>0?'#B36A00':'var(--mut)')+';font-weight:600;">⏳ נותר: '+remaining+' שב׳ · '+remHours+' שע׳</span>';
+    html+='</div></div>';
+    return html;
   }
   var html='';
   rows.forEach(function(g){
     html+='<div style="margin-bottom:14px;">';
-    html+='<div style="display:flex;justify-content:space-between;padding:7px 10px;background:var(--bg);border-radius:var(--r);font-weight:700;font-size:13px;">';
-    html+='<span>'+g.name+'</span><span style="color:var(--acc);">'+g.weeks+' שבועות'+completedNote(g.weeks,g.completed)+'  '+g.hours+' שעות</span></div>';
+    html+=statLine(g.name,g.weeks,g.hours,g.completed,true);
     g.teams.forEach(function(t){
-      html+='<div style="display:flex;justify-content:space-between;padding:5px 10px 5px 20px;font-size:12px;border-bottom:1px solid var(--brd);">';
-      html+='<span style="color:var(--mut);">'+t.name+'</span><span>'+t.weeks+' שבועות'+completedNote(t.weeks,t.completed)+'  '+t.hours+' שעות</span></div>';
+      html+=statLine(t.name,t.weeks,t.hours,t.completed,false);
     });
     html+='</div>';
   });
-  html+='<div style="display:flex;justify-content:space-between;padding:10px;background:#1E3A5F;border-radius:var(--r);color:#fff;font-weight:700;font-size:13px;margin-top:8px;">';
-  html+='<span>סה"כ</span><span>'+totalWeeks+' שבועות'+(totalCompleted>0?(' <span style="color:#8CE0B8;">('+totalCompleted+' הושלמו)</span>'):'')+'  '+totalHours+' שעות</span></div>';
+  var totalRemaining=totalWeeks-totalCompleted;
+  var totalRemHours=totalHours-(totalCompleted*HPW);
+  html+='<div style="padding:10px;background:#1E3A5F;border-radius:var(--r);color:#fff;margin-top:8px;">';
+  html+='<div style="font-weight:700;font-size:13px;margin-bottom:6px;">סה"כ: '+totalWeeks+' שבועות · '+totalHours+' שעות</div>';
+  html+='<div style="display:flex;gap:16px;font-size:12px;">';
+  html+='<span style="color:#8CE0B8;font-weight:600;">✅ הושלם: '+totalCompleted+' שב׳ · '+(totalCompleted*HPW)+' שע׳</span>';
+  html+='<span style="color:#FFD79A;font-weight:600;">⏳ נותר: '+totalRemaining+' שב׳ · '+totalRemHours+' שע׳</span>';
+  html+='</div></div>';
   // משימות על חשבון פרויקט אחר — כל שם/סעיף מוצג כקבוצה נפרדת משלו
   var offTasks=D.tasks.filter(function(t){return t.offProject;});
   if(offTasks.length){
@@ -2197,25 +2202,25 @@ window.exportSummaryXlsx=function exportSummaryXlsx(){
   var cfg=JSON.parse(localStorage.getItem('te_sprint_config')||'{}');
   var HPW=cfg.hoursPerWeek||42;
   function taskWeeks(t){return Math.max(1,Math.round((pd(t.end).getTime()-pd(t.start).getTime()-6*86400000)/(7*86400000))+1);}
-  var wsData=[['קבוצה','צוות','שבועות','שעות']];
-  var totalW=0,totalH=0;
+  var wsData=[['קבוצה','צוות','שבועות','שעות','הושלם (שב\')','הושלם (שע\')','נותר (שב\')','נותר (שע\')']];
+  var totalW=0,totalH=0,totalC=0;
   D.groups.forEach(function(g){
-    var gW=0;
+    var gW=0,gC=0;
     D.teams.filter(function(t){return idEq(t.gid,g.id);}).forEach(function(team){
       var wids=D.workers.filter(function(w){return idEq(w.tid,team.id);}).map(function(w){return w.id;});
-      var tW=0;
-      wids.forEach(function(wid){D.tasks.filter(function(t){return idEq(t.wid,wid)&&!t.offProject;}).forEach(function(t){tW+=taskWeeks(t);});});
-      if(tW>0){wsData.push([g.name,team.name,tW,tW*HPW]);gW+=tW;}
+      var tW=0,tC=0;
+      wids.forEach(function(wid){D.tasks.filter(function(t){return idEq(t.wid,wid)&&!t.offProject;}).forEach(function(t){var tw=taskWeeks(t);tW+=tw;if(t.completed)tC+=tw;});});
+      if(tW>0){wsData.push([g.name,team.name,tW,tW*HPW,tC,tC*HPW,tW-tC,(tW-tC)*HPW]);gW+=tW;gC+=tC;}
     });
-    var dW=0;
+    var dW=0,dC=0;
     D.workers.filter(function(w){return idEq(w.gid,g.id)&&(!w.tid||!D.teams.find(function(t){return idEq(t.id,w.tid);}));}).forEach(function(w){
-      D.tasks.filter(function(t){return idEq(t.wid,w.id)&&!t.offProject;}).forEach(function(t){dW+=taskWeeks(t);});
+      D.tasks.filter(function(t){return idEq(t.wid,w.id)&&!t.offProject;}).forEach(function(t){var tw=taskWeeks(t);dW+=tw;if(t.completed)dC+=tw;});
     });
-    if(dW>0){wsData.push([g.name,'ישיר לקבוצה',dW,dW*HPW]);gW+=dW;}
-    if(gW>0){wsData.push([g.name,'סה"כ',gW,gW*HPW]);totalW+=gW;totalH+=gW*HPW;}
+    if(dW>0){wsData.push([g.name,'ישיר לקבוצה',dW,dW*HPW,dC,dC*HPW,dW-dC,(dW-dC)*HPW]);gW+=dW;gC+=dC;}
+    if(gW>0){wsData.push([g.name,'סה"כ',gW,gW*HPW,gC,gC*HPW,gW-gC,(gW-gC)*HPW]);totalW+=gW;totalH+=gW*HPW;totalC+=gC;}
   });
-  wsData.push(['','','','']);
-  wsData.push(['סה"כ','',totalW,totalH]);
+  wsData.push(['','','','','','','','']);
+  wsData.push(['סה"כ','',totalW,totalH,totalC,totalC*HPW,totalW-totalC,(totalW-totalC)*HPW]);
   // על חשבון פרויקטים אחרים — מקובץ לפי שם/סעיף
   var offTasks=D.tasks.filter(function(t){return t.offProject;});
   if(offTasks.length){
@@ -2234,7 +2239,7 @@ window.exportSummaryXlsx=function exportSummaryXlsx(){
       tasks.forEach(function(t){
         var w=D.workers.find(function(x){return x.id===t.wid;});
         var tw=taskWeeks(t);
-        wsData.push([(w?w.name:'')+' — '+t.name,'',tw,tw*HPW]);
+        wsData.push([(t.completed?'✅ ':'')+(w?w.name:'')+' — '+t.name,'',tw,tw*HPW]);
         labelW+=tw;
       });
       wsData.push(['סה"כ '+label,'',labelW,labelW*HPW]);
@@ -2242,7 +2247,7 @@ window.exportSummaryXlsx=function exportSummaryXlsx(){
   }
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols']=[{wch:20},{wch:20},{wch:12},{wch:12}];
+  ws['!cols']=[{wch:20},{wch:20},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
   XLSX.utils.book_append_sheet(wb,ws,'סיכום');
   XLSX.writeFile(wb,'summary.xlsx');
   toast('Excel יוצא');
