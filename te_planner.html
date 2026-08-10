@@ -103,6 +103,9 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .blk-del{opacity:0;width:0;overflow:hidden;padding:0;background:rgba(255,255,255,.22);border:none;cursor:pointer;font-size:10px;border-radius:3px;color:#fff;flex-shrink:0;transition:opacity .1s;}
 .blk:hover .blk-del{opacity:1;width:auto;padding:1px 5px;}
 .blk.sel .blk-del{opacity:1;width:auto;padding:1px 5px;}
+.blk-check{cursor:pointer;font-size:12px;flex-shrink:0;line-height:1;opacity:0;width:0;overflow:hidden;transition:opacity .1s;}
+.blk:hover .blk-check{opacity:1;width:auto;}
+.blk-check:hover{transform:scale(1.15);}
 /* lasso */
 .lasso{position:fixed;border:1.5px dashed var(--acc);background:rgba(55,138,221,.07);pointer-events:none;z-index:50;}
 /* sel toolbar */
@@ -1093,8 +1096,15 @@ function renderBody(TW,WW_){
         var col=t.color||(primaryW?primaryW.color:row.obj.color);
         var blk=document.createElement('div');blk.className='blk'+(selectedTids.has(+t.id)?' sel':'');blk.dataset.tid=String(t.id);
         blk.style.cssText='right:'+r+'px;width:'+bw+'px;background:'+col+';'+(t.completed?'outline:3px solid #1D9E75;outline-offset:-2px;':(t.risk?'outline:2px solid #E24B4A;outline-offset:-2px;':''));
-        blk.innerHTML='<div class="rhandle-r"></div><div class="dep-dot dep-dot-r" data-tid="'+String(t.id)+'" data-side="start"></div><span class="btitle">'+t.name+'</span>'+(t.note?'<span class="blk-note-dot" title="" data-note="'+t.note.replace(/"/g,'&quot;')+'">!</span>':'')+'<button class="blk-opts">⋯</button><button class="blk-del" title="מחק">✕</button><div class="dep-dot dep-dot-l" data-tid="'+String(t.id)+'" data-side="end"></div><div class="rhandle-l"></div>';
+        blk.innerHTML='<div class="rhandle-r"></div><div class="dep-dot dep-dot-r" data-tid="'+String(t.id)+'" data-side="start"></div><span class="blk-check" title="סמן כהושלם">'+(t.completed?'☑':'☐')+'</span><span class="btitle">'+t.name+'</span>'+(t.note?'<span class="blk-note-dot" title="" data-note="'+t.note.replace(/"/g,'&quot;')+'">!</span>':'')+'<button class="blk-opts">⋯</button><button class="blk-del" title="מחק">✕</button><div class="dep-dot dep-dot-l" data-tid="'+String(t.id)+'" data-side="end"></div><div class="rhandle-l"></div>';
         blk.querySelector('.blk-opts').addEventListener('click',function(e){e.stopPropagation();openBlockCtx(e,t.id);});
+        blk.querySelector('.blk-check').addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault();});
+        blk.querySelector('.blk-check').addEventListener('click',function(e){
+          e.stopPropagation();
+          snapshot();
+          t.completed=!t.completed;
+          render();
+        });
         blk.querySelectorAll('.dep-dot').forEach(function(dot){
           if(dot.dataset.side==='end'){
             // רק dep-dot-l (סוף משימה) מאפשר גרירה
@@ -1112,12 +1122,12 @@ function renderBody(TW,WW_){
         blk.querySelector('.rhandle-r').addEventListener('mousedown',(function(b,id){return function(e){startResizeR(e,id,b);};})(blk,t.id));
         blk.querySelector('.rhandle-l').addEventListener('mousedown',(function(b,id){return function(e){startResizeL(e,id,b);};})(blk,t.id));
         blk.addEventListener('mousedown',function(e){
-          if(e.target.classList.contains('rhandle-r')||e.target.classList.contains('rhandle-l')||e.target.classList.contains('blk-opts')||e.target.classList.contains('blk-del')||e.target.classList.contains('dep-dot'))return;
+          if(e.target.classList.contains('rhandle-r')||e.target.classList.contains('rhandle-l')||e.target.classList.contains('blk-opts')||e.target.classList.contains('blk-del')||e.target.classList.contains('blk-check')||e.target.classList.contains('dep-dot'))return;
           _lastClickedTid=+t.id;
           startDrag(e,t.id,row.obj,blk);
         });
         blk.addEventListener('click',function(e){
-          if(e.target.classList.contains('rhandle-r')||e.target.classList.contains('rhandle-l')||e.target.classList.contains('blk-opts')||e.target.classList.contains('blk-del')||e.target.classList.contains('dep-dot'))return;
+          if(e.target.classList.contains('rhandle-r')||e.target.classList.contains('rhandle-l')||e.target.classList.contains('blk-opts')||e.target.classList.contains('blk-del')||e.target.classList.contains('blk-check')||e.target.classList.contains('dep-dot'))return;
           e.stopPropagation();
           _lastClickedTid=+t.id;
           if(e.ctrlKey||e.metaKey){if(selectedTids.has(+t.id))selectedTids.delete(t.id);else selectedTids.add(+t.id);}
@@ -1522,27 +1532,41 @@ function renderMilestones(){
 // ── דרישות ספרינט: מה נדרש (סיום משימות / % התקדמות) עד סוף כל ספרינט ──────
 function computeSprintRequirements(sprint){
   var sStart=pd(sprint.start), sEnd=pd(sprint.end);
-  var completing=[], inProgress=[];
+  var starting=[], completing=[], inProgress=[];
   D.tasks.forEach(function(t){
     var ts=pd(t.start), te=pd(t.end);
     var w=D.workers.find(function(x){return idEq(x.id,t.wid);});
     var wname=w?w.name:'';
+    // מתחיל בספרינט הזה — הכי דחוף לאנשי האפיון (צריך אפיון מוכן לפני שזה מתחיל)
+    if(ts.getTime()>=sStart.getTime()&&ts.getTime()<=sEnd.getTime()){
+      starting.push({task:t,workerName:wname});
+    }
+    // מסתיים בספרינט הזה (משימה קצרה יכולה להופיע גם כאן וגם ב"מתחיל")
     if(te.getTime()>=sStart.getTime()&&te.getTime()<=sEnd.getTime()){
       completing.push({task:t,workerName:wname});
-    }else if(ts.getTime()<=sEnd.getTime()&&te.getTime()>sEnd.getTime()){
+    }
+    // בתהליך: התחילה *בספרינט קודם* (לא בזה) וממשיכה אחרי סוף הספרינט הזה —
+    // משימות שמתחילות בספרינט הזה כבר מופיעות תחת "מתחיל", לא כפולות כאן.
+    if(ts.getTime()<sStart.getTime()&&te.getTime()>sEnd.getTime()){
       var total=te.getTime()-ts.getTime();
       var done=Math.min(sEnd.getTime(),te.getTime())-ts.getTime();
       var pct=total>0?Math.round(done/total*100):100;
       if(pct>0)inProgress.push({task:t,workerName:wname,pct:pct});
     }
   });
+  starting.sort(function(a,b){return a.task.name.localeCompare(b.task.name);});
   completing.sort(function(a,b){return a.task.name.localeCompare(b.task.name);});
   inProgress.sort(function(a,b){return b.pct-a.pct;});
-  return {completing:completing,inProgress:inProgress};
+  return {starting:starting,completing:completing,inProgress:inProgress};
 }
 
 function sprintReqHtml(sp,req,compact){
   var html=compact?'':('<b>'+sp.name+'</b><br>');
+  if(req.starting.length){
+    html+='<div style="'+(compact?'margin-bottom:4px;':'')+'"><u style="color:#378ADD;">מתחיל (נדרש אפיון):</u><br>';
+    req.starting.forEach(function(s){html+='<span style="color:#378ADD;font-weight:600;">🚀 '+s.task.name+(s.workerName?(' ('+s.workerName+')'):'')+'</span><br>';});
+    html+='</div>';
+  }
   if(req.completing.length){
     html+=(compact?'':'<u>מסתיים:</u><br>');
     req.completing.forEach(function(c){html+='✅ '+c.task.name+(c.workerName?(' ('+c.workerName+')'):'')+'<br>';});
@@ -1551,7 +1575,7 @@ function sprintReqHtml(sp,req,compact){
     html+=(compact?'':'<u>בתהליך:</u><br>');
     req.inProgress.forEach(function(p){html+='⏳ '+p.pct+'% מ"'+p.task.name+'"'+(p.workerName?(' ('+p.workerName+')'):'')+'<br>';});
   }
-  if(!req.completing.length&&!req.inProgress.length)html+='<span style="opacity:.7;">אין דרישות רשומות</span>';
+  if(!req.starting.length&&!req.completing.length&&!req.inProgress.length)html+='<span style="opacity:.7;">אין דרישות רשומות</span>';
   return html;
 }
 
@@ -1585,7 +1609,7 @@ function buildSprintReqBody(){
   var html='';
   sorted.forEach(function(sp){
     var req=computeSprintRequirements(sp);
-    if(!req.completing.length&&!req.inProgress.length)return;
+    if(!req.starting.length&&!req.completing.length&&!req.inProgress.length)return;
     html+='<div style="margin-bottom:12px;">';
     html+='<div style="padding:7px 10px;background:#1D9E75;color:#fff;border-radius:var(--r);font-weight:700;font-size:13px;">🏁 '+sp.name+' <span style="font-weight:400;font-size:11px;opacity:.85;">('+sp.start+' → '+sp.end+')</span></div>';
     html+='<div style="padding:8px 10px;font-size:12px;line-height:1.8;">'+sprintReqHtml(sp,req,true)+'</div>';
