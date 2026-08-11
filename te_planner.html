@@ -381,7 +381,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
           <label style="display:block;">שבועות</label>
           <div style="display:flex;align-items:center;gap:3px;">
             <button type="button" onclick="var w=document.getElementById('tsm-weeks');w.value=Math.max(1,+w.value-1);updateTaskEnd();" style="width:22px;height:34px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px;padding:0;">−</button>
-            <input type="number" id="tsm-weeks" min="1" max="52" value="2" style="width:36px;text-align:center;direction:ltr;padding:6px 2px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);font-family:Heebo,sans-serif;font-size:13px;" oninput="updateTaskEnd()"/>
+            <input type="number" id="tsm-weeks" min="1" max="52" value="3" style="width:36px;text-align:center;direction:ltr;padding:6px 2px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);font-family:Heebo,sans-serif;font-size:13px;" oninput="updateTaskEnd()"/>
             <button type="button" onclick="var w=document.getElementById('tsm-weeks');w.value=+w.value+1;updateTaskEnd();" style="width:22px;height:34px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);cursor:pointer;font-size:14px;padding:0;">+</button>
           </div>
         </div>
@@ -1056,10 +1056,10 @@ function renderBody(TW,WW_){
           var wi=Math.floor(pixFromRight/WW_);
           if(wi<0||wi>=TL_WEEKS)return;
           var startDate=fd(wkDate(wi));
-          var endDate=fd(addD(addW(wkDate(wi),1),6));
+          var endDate=fd(addD(addW(wkDate(wi),2),6));
           var newId=D.nextTid++;
           snapshot();
-          D.tasks.push({id:newId,wid:w.id,name:'משימה חדשה',start:startDate,end:endDate,weeks:2,color:null});
+          D.tasks.push({id:newId,wid:w.id,name:'משימה חדשה',start:startDate,end:endDate,weeks:3,color:null});
           render();
           setTimeout(function(){
             var blk=document.querySelector('.blk[data-tid="'+newId+'"]');
@@ -1529,6 +1529,18 @@ function renderMilestones(){
   });
 }
 
+// ── האם משימה דורשת אפיון? ────────────────────────────────────────────────
+// זיהוי אוטומטי לפי מילות מפתח בשם המשימה (משימות כמו "DR"/"בדיקות" הן עצמן
+// עבודת אפיון/בדיקה ולא צריכות אפיון משלהן) — אבל כל משימה ניתנת לעקיפה ידנית
+// דרך תפריט קליק ימני, בלי תלות בשירות AI חיצוני.
+var NO_SPEC_KEYWORDS=['DR','בדיקות','בדיקה','תיקון','תיקונים'];
+function needsSpec(t){
+  if(t.specOverride==='no')return false;
+  if(t.specOverride==='yes')return true;
+  var name=(t.name||'').toLowerCase();
+  return !NO_SPEC_KEYWORDS.some(function(kw){return name.indexOf(kw.toLowerCase())!==-1;});
+}
+
 // ── דרישות ספרינט: מה נדרש (סיום משימות / % התקדמות) עד סוף כל ספרינט ──────
 function computeSprintRequirements(sprint){
   var sStart=pd(sprint.start), sEnd=pd(sprint.end);
@@ -1537,8 +1549,9 @@ function computeSprintRequirements(sprint){
     var ts=pd(t.start), te=pd(t.end);
     var w=D.workers.find(function(x){return idEq(x.id,t.wid);});
     var wname=w?w.name:'';
-    // מתחיל בספרינט הזה — הכי דחוף לאנשי האפיון (צריך אפיון מוכן לפני שזה מתחיל)
-    if(ts.getTime()>=sStart.getTime()&&ts.getTime()<=sEnd.getTime()){
+    // מתחיל בספרינט הזה — הכי דחוף לאנשי האפיון (צריך אפיון מוכן לפני שזה מתחיל),
+    // אלא אם המשימה מסומנת (אוטומטית או ידנית) כלא דורשת אפיון
+    if(ts.getTime()>=sStart.getTime()&&ts.getTime()<=sEnd.getTime()&&needsSpec(t)){
       starting.push({task:t,workerName:wname});
     }
     // מסתיים בספרינט הזה (משימה קצרה יכולה להופיע גם כאן וגם ב"מתחיל")
@@ -1559,6 +1572,7 @@ function computeSprintRequirements(sprint){
   inProgress.sort(function(a,b){return b.pct-a.pct;});
   return {starting:starting,completing:completing,inProgress:inProgress};
 }
+
 
 function sprintReqHtml(sp,req,compact){
   var html=compact?'':('<b>'+sp.name+'</b><br>');
@@ -1882,6 +1896,8 @@ function openBlockCtx(e,tid){
    {sep:1},
    {l:'📝 '+(t.note?'ערוך הערה':'הוסף הערה'),f:function(){closeCtx();openNoteModal(tid);}},
    {l:t.completed?'↩ בטל השלמה':'✅ סמן כהושלם',f:function(){snapshot();t.completed=!t.completed;closeCtx();render();}},
+   {l:needsSpec(t)?'🚫 לא נדרש אפיון':'✅ כן נדרש אפיון','f':function(){snapshot();t.specOverride=needsSpec(t)?'no':'yes';closeCtx();render();}},
+   ...(t.specOverride?[{l:'↩ אפס לזיהוי אוטומטי (אפיון)',f:function(){snapshot();t.specOverride=null;closeCtx();render();}}]:[]),
    {l:t.risk?'✅ הסר סיכון':'⚠️ סיכון / נדרשת העמקה',f:function(){snapshot();t.risk=!t.risk;closeCtx();render();}},
    (t.offProject?
      {l:'✏️ ערוך פרויקט אחר ('+offProjLabel(t)+')',f:function(){closeCtx();openOffProjectModal(tid);}}
@@ -2036,7 +2052,7 @@ function openTaskModal(tid,wid,startDate){
   sel.value=t?t.wid:(wid||(D.workers[0]&&D.workers[0].id));
   var td=fd(TODAY);
   var sVal=t?t.start:(startDate||td);
-  var eVal=t?t.end:(startDate?fd(addW(pd(startDate),2)):fd(addW(TODAY,2)));
+  var eVal=t?t.end:(startDate?fd(addW(pd(startDate),3)):fd(addW(TODAY,3)));
   document.getElementById('tsm-start').value=sVal;
   document.getElementById('tsm-end').value=eVal;
   // sync weeks field
