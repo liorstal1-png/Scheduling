@@ -1193,7 +1193,7 @@ function render(){
         var lh=document.createElement('div'); lh.className='lhandle'; blk.appendChild(lh);
         blk.addEventListener('contextmenu',function(e){if(!EDIT_MODE)return;e.preventDefault();_blkId=a.id;openCtx('bctx',e);});
         if(_selectedBlkIds.indexOf(a.id)!==-1) blk.classList.add('selected');
-        blk.addEventListener('mouseenter',function(e){_selBlkId=a.id;showBlkTooltip(e,blkTooltipHtml(a,proj),proj.color);});
+        blk.addEventListener('mouseenter',function(e){showBlkTooltip(e,blkTooltipHtml(a,proj),proj.color);});
         if(_selectedBlkIds.indexOf(a.id)!==-1) blk.classList.add('selected');
         blk.addEventListener('mousemove',function(e){posTooltip(e);});
         blk.addEventListener('mouseleave',function(){hideBlkTooltip();});
@@ -1310,7 +1310,7 @@ function render(){
         var lh=document.createElement('div'); lh.className='lhandle'; blk.appendChild(lh);
         makeResizeLeft(lh,blk,a);
         blk.addEventListener('contextmenu',function(e){if(!EDIT_MODE)return;e.preventDefault();_blkId=a.id;if(!blk.classList.contains('selected')){document.querySelectorAll('.blk.selected').forEach(function(b){b.classList.remove('selected');});_selectedBlkIds=[a.id];blk.classList.add('selected');_selBlkId=a.id;}openCtx('bctx',e);});
-        blk.addEventListener('mouseenter',function(e){_selBlkId=a.id;showBlkTooltip(e,blkTooltipHtml(a,proj),proj.color);});
+        blk.addEventListener('mouseenter',function(e){showBlkTooltip(e,blkTooltipHtml(a,proj),proj.color);});
         if(_selectedBlkIds.indexOf(a.id)!==-1) blk.classList.add('selected');
         blk.addEventListener('mousemove',function(e){posTooltip(e);});
         blk.addEventListener('mouseleave',function(){hideBlkTooltip();});
@@ -1857,9 +1857,14 @@ function renderFilter(){
 
 // ── drag & resize ─────────────────────────────────────────────────────────────
 function makeDrag(blk,a){
-  var sx,sl,drag=false,lastY=0,hoverRow=null;
+  var sx,sl,drag=false,moved=false,lastY=0,hoverRow=null;
+  var DRAG_THRESHOLD=4; // פיקסלים — מתחת לזה זו לחיצה רגילה, לא גרירה
   function mv(e){
     if(!drag)return;
+    if(!moved){
+      if(Math.abs(e.clientX-sx)<DRAG_THRESHOLD&&Math.abs(e.clientY-lastY)<DRAG_THRESHOLD)return;
+      moved=true; // עכשיו זו באמת גרירה, לא לחיצה
+    }
     lastY=e.clientY;
     blk.style.left=Math.max(0,sl+(e.clientX-sx))+'px';
     var rows=document.getElementById('tlbody').querySelectorAll('.tlrow, .ghdr-tl');
@@ -1877,6 +1882,7 @@ function makeDrag(blk,a){
     if(!drag)return;drag=false;blk.classList.remove('drag');
     document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
     document.getElementById('tlbody').querySelectorAll('.tlrow, .ghdr-tl').forEach(function(r){r.classList.remove('drop-row');});
+    if(!moved)return; // לחיצה רגילה בלבד — לא לזוז/לשמור כלום, כדי לא "להעלים" משבצים בטעות
     // RTL: left = dateX(end), after drag compute new end from left position
     var newLeftX=parseFloat(blk.style.left);
     var endWi=TL_WEEKS-1-Math.round(newLeftX/WW());
@@ -1898,7 +1904,7 @@ function makeDrag(blk,a){
     if(!EDIT_MODE)return;
     if(e.ctrlKey||e.metaKey)return; // Ctrl+Click — אל תתחיל drag
     if(e.target.classList.contains('rhandle')||e.target.classList.contains('lhandle')||e.target.classList.contains('bedit')||e.target.classList.contains('binput'))return;
-    drag=true;blk.classList.add('drag');sx=e.clientX;sl=parseFloat(blk.style.left);lastY=e.clientY;
+    drag=true;moved=false;hoverRow=null;blk.classList.add('drag');sx=e.clientX;sl=parseFloat(blk.style.left);lastY=e.clientY;
     _selBlkId=a.id;
     document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);e.preventDefault();
   });
