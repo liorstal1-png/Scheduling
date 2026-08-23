@@ -1330,9 +1330,9 @@ function render(){
         row.appendChild(blk);
       });
       (function(wid){
-      row.addEventListener('mouseenter',function(){_hovWrkId=wid;});
-      row.addEventListener('mouseleave',function(){_hovWrkId=null;});
-      row.addEventListener('mousemove',function(e){
+      row.addEventListener('click',function(e){
+        if(e.target.closest('.blk'))return; // קליק על בלוק קיים לא קובע יעד הדבקה
+        _hovWrkId=wid;
         var _tli=document.getElementById('tlinner');
         var _riHH=_tli.getBoundingClientRect();
         var _xHH=e.clientX-_riHH.left;
@@ -1541,8 +1541,7 @@ function renderSidebar(gs){
     hdr.textContent=g.team?g.team.name:'ללא צוות';
     if(g.team){
       (function(tid){
-        hdr.addEventListener('mouseenter',function(){_hovWrkId='team_'+tid;});
-        hdr.addEventListener('mouseleave',function(){_hovWrkId=null;});
+        hdr.addEventListener('click',function(){_hovWrkId='team_'+tid;});
       })(g.team.id);
     }
     el.appendChild(hdr);
@@ -1566,13 +1565,9 @@ function renderSidebar(gs){
       row.appendChild(eb); row.appendChild(nm);
       row.addEventListener('contextmenu',function(e){if(!EDIT_MODE)return;e.preventDefault();_wrkId=w.id;openCtx('wctx',e);});
     (function(wid){
-      row.addEventListener('mouseenter',function(){_hovWrkId=wid;});
-      row.addEventListener('mouseleave',function(){_hovWrkId=null;});
-      row.addEventListener('mousemove',function(e){
-        var _tli=document.getElementById('tlinner');
-        var _riHH=_tli.getBoundingClientRect();
-        var _xHH=e.clientX-_riHH.left;
-        _hovWeekDate=xDate(Math.max(0,Math.min(totalW(),_xHH)));
+      row.addEventListener('click',function(e){
+        if(e.target===eb)return;
+        _hovWrkId=wid;
       });
     })(w.id);
       el.appendChild(row);
