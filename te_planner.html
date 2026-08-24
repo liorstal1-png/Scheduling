@@ -1234,16 +1234,50 @@ function renderSprintCutBody(TW,WW_){
 }
 
 // ── DRAG & RESIZE ──────────────────────────────────────────────────────────
-function resolvePush(wid){
-  var tasks=D.tasks.filter(function(x){return x.wid===wid;});
-  tasks.sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();});
-  for(var i=0;i<tasks.length-1;i++){
-    var a=tasks[i],b=tasks[i+1];
-    // a ends on Saturday, b starts on Sunday — overlap if b.start <= a.end
-    if(pd(b.start).getTime()<=pd(a.end).getTime()){
-      b.start=fd(addW(pd(a.start),a.weeks||1));
-      b.end=fd(addD(addW(pd(b.start),b.weeks-1),6));
+// דוחף משימות אחרות של אותו עובד כדי שלא יחפפו את משימת העוגן (fixedId) —
+// בלי להזיז את משימת העוגן עצמה. משתמש בסדר ה*מקורי* (orderedOtherIds, שנקבע
+// פעם אחת בתחילת הגרירה/שינוי הגודל) ולא בסדר החי — כי אם ממיינים מחדש בכל
+// תזוזה, ברגע שהמשימה הנגררת "חוצה" ויזואלית משימה אחרת, סדר המיון מתחלף,
+// והפונקציה עלולה להזיז בטעות את המשימה הנגררת עצמה במקום את השכנה שלה
+// (זה בדיוק מה שנראה כאילו משימה "עוקפת" את השנייה).
+function resolvePushFixed(fixedId,orderedOtherIds){
+  var fixed=D.tasks.find(function(x){return x.id===fixedId;});
+  if(!fixed)return;
+  var fixedStartT=pd(fixed.start).getTime();
+
+  var afterIds=orderedOtherIds.filter(function(id){
+    var x=D.tasks.find(function(t2){return t2.id===id;});
+    return x&&pd(x.start).getTime()>=fixedStartT;
+  });
+  var beforeIds=orderedOtherIds.filter(function(id){
+    var x=D.tasks.find(function(t2){return t2.id===id;});
+    return x&&pd(x.start).getTime()<fixedStartT;
+  });
+
+  // דחיפה קדימה של מה שהיה אחרי העוגן, בשרשרת, בלי תלות בסדר החי
+  var chainEnd=fixed.end;
+  afterIds.forEach(function(id){
+    var x=D.tasks.find(function(t2){return t2.id===id;});
+    if(!x)return;
+    if(pd(x.start).getTime()<=pd(chainEnd).getTime()){
+      var w=x.weeks||1;
+      x.start=fd(addW(pd(chainEnd),1));
+      x.end=fd(addD(addW(pd(x.start),w-1),6));
     }
+    if(pd(x.end).getTime()>pd(chainEnd).getTime())chainEnd=x.end;
+  });
+
+  // דחיפה אחורה של מה שהיה לפני העוגן (מהקרוב ביותר אליו, אחורה בשרשרת)
+  var chainStart=fixed.start;
+  for(var i=beforeIds.length-1;i>=0;i--){
+    var x=D.tasks.find(function(t2){return t2.id===beforeIds[i];});
+    if(!x)continue;
+    if(pd(x.end).getTime()>=pd(chainStart).getTime()){
+      var w=x.weeks||1;
+      x.end=fd(addD(pd(chainStart),-1));
+      x.start=fd(addD(pd(x.end),-(w*7-1)));
+    }
+    if(pd(x.start).getTime()<pd(chainStart).getTime())chainStart=x.start;
   }
   propagateDeps();
 }
@@ -1298,6 +1332,11 @@ function startDrag(e,tid,worker,blk){
   D.tasks.filter(function(x){return x.wid===worker.id;}).forEach(function(x){
     origPos[x.id]={start:x.start,end:x.end,weeks:x.weeks||1};
   });
+  // סדר קבוע של שאר המשימות אצל העובד הזה, נקבע *פעם אחת* כאן ולא משתנה
+  // לאורך כל הגרירה — ראה הסבר ב-resolvePushFixed.
+  var orderedOtherIds=D.tasks.filter(function(x){return x.wid===worker.id&&x.id!==tid;})
+    .sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();})
+    .map(function(x){return x.id;});
 
   function onMove(ev){
     if(!moved){
@@ -1320,7 +1359,7 @@ function startDrag(e,tid,worker,blk){
       D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;}).forEach(function(x){
         if(origPos[x.id]){x.start=origPos[x.id].start;x.end=origPos[x.id].end;x.weeks=origPos[x.id].weeks;}
       });
-      resolvePush(t.wid);
+      resolvePushFixed(tid,orderedOtherIds);
       // update visuals
       D.tasks.forEach(function(x){
         if(x.id===tid)return;
@@ -1342,6 +1381,15 @@ function startDrag(e,tid,worker,blk){
           var nw=D.workers.find(function(x){return idEq(x.id,newWidRaw);});
           t.wid=nw?nw.id:newWidRaw;
           if(nw)blk.style.background=t.color||nw.color;
+          // עברנו לעובד אחר — יש לחשב מחדש את סדר המשימות הקבוע ואת המיקומים
+          // המקוריים ביחס לעובד *החדש*, אחרת הדחיפה תתייחס לעובד הלא נכון.
+          origPos={};
+          D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;}).forEach(function(x){
+            origPos[x.id]={start:x.start,end:x.end,weeks:x.weeks||1};
+          });
+          orderedOtherIds=D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;})
+            .sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();})
+            .map(function(x){return x.id;});
         }
         break;
       }
@@ -1365,6 +1413,9 @@ function startResizeR(e,tid,blk){
   var t=D.tasks.find(function(x){return x.id===tid;});
   var os=t.start,sx=e.clientX;
   var origSpan=t.weeks||1;
+  var orderedOtherIds=D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;})
+    .sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();})
+    .map(function(x){return x.id;});
   function onMove(e){
     var d=Math.round(-(e.clientX-sx)/WW());
     var newSpan=Math.max(1,origSpan-d);
@@ -1372,6 +1423,14 @@ function startResizeR(e,tid,blk){
     t.weeks=newSpan;
     t.end=fd(addD(addW(pd(t.start),newSpan-1),6));
     blk.style.right=dateRight(t.start)+'px';blk.style.width=(newSpan*WW()-2)+'px';
+    resolvePushFixed(tid,orderedOtherIds);
+    D.tasks.forEach(function(x){
+      if(x.id===tid)return;
+      var b=document.querySelector('.blk[data-tid="'+x.id+'"]');
+      if(!b)return;
+      b.style.right=dateRight(x.start)+'px';
+      b.style.width=((x.weeks||1)*WW()-2)+'px';
+    });
     requestAnimationFrame(redrawDeps);
   }
   function onUp(){document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);render();}
@@ -1383,12 +1442,23 @@ function startResizeL(e,tid,blk){
   var t=D.tasks.find(function(x){return x.id===tid;});
   var sx=e.clientX;
   var origSpan=t.weeks||1;
+  var orderedOtherIds=D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;})
+    .sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();})
+    .map(function(x){return x.id;});
   function onMove(e){
     var d=Math.round(-(e.clientX-sx)/WW());
     var newSpan=Math.max(1,origSpan+d);
     t.weeks=newSpan;
     t.end=fd(addD(addW(pd(t.start),newSpan-1),6));
     blk.style.width=(newSpan*WW()-2)+'px';
+    resolvePushFixed(tid,orderedOtherIds);
+    D.tasks.forEach(function(x){
+      if(x.id===tid)return;
+      var b=document.querySelector('.blk[data-tid="'+x.id+'"]');
+      if(!b)return;
+      b.style.right=dateRight(x.start)+'px';
+      b.style.width=((x.weeks||1)*WW()-2)+'px';
+    });
     requestAnimationFrame(redrawDeps);
   }
   function onUp(){document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);render();}
