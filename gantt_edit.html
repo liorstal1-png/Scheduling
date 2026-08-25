@@ -3174,7 +3174,7 @@ function openSummary(){
       var bgStyle=isAlBlk
         ?'background:'+dc+';background-image:repeating-linear-gradient(135deg,rgba(255,255,255,0) 0px,rgba(255,255,255,0) 6px,rgba(255,255,255,.3) 6px,rgba(255,255,255,.3) 8px);'
         :'background:'+dc+';';
-      blkContent+='<div class="proj-blk-cell"'+(proj.scope?' data-scope="'+proj.scope.replace(/"/g,'&quot;')+'"':'')+' style="position:absolute;top:8px;left:'+x+'px;width:'+w+'px;height:'+(RH-16)+'px;'+bgStyle+'border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.15);z-index:3;overflow:hidden;'+(proj.scope?'cursor:help;':'')+'"><span style="font-size:10px;font-weight:600;white-space:nowrap;display:block;padding:2px 4px;color:'+(isAlBlk?'rgba(0,0,0,.7)':'#fff')+';">'+proj.name+(proj.scope?' ℹ️':'')+'</span></div>';
+      blkContent+='<div class="proj-blk-cell"'+(proj.scope?' data-scope="'+proj.scope.replace(/"/g,'&quot;')+'"':'')+' style="position:absolute;top:8px;left:'+x+'px;width:'+w+'px;height:'+(RH-16)+'px;'+bgStyle+'border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.15);z-index:3;overflow:hidden;'+(proj.scope?'cursor:help;':'')+'"><span style="font-size:10px;font-weight:600;white-space:nowrap;display:block;padding:2px 4px;color:'+(isAlBlk?'rgba(0,0,0,.7)':'#fff')+';">'+proj.name+'</span></div>';
     });
     // תא wrapper לכל הרוחב
     rowCells='<td colspan="'+TL_WEEKS+'" style="position:relative;height:'+RH+'px;border-bottom:1px solid #E0DED8;padding:0;">'+blkContent+'</td>';
@@ -3322,7 +3322,7 @@ function openSummary(){
     +'  var st=document.getElementById("scope-tt");'
     +'  if(!cell){st.style.display="none";return;}'
     +'  var items=cell.getAttribute("data-scope").split(",").map(function(s){return s.trim();}).filter(Boolean);'
-    +'  var html="<div style=\\"font-weight:700;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,.25);padding-bottom:5px;\\">📋 תכולות</div><ul style=\\"margin:0;padding-right:16px;\\">";'
+    +'  var html="<div style=\\"font-weight:700;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,.25);padding-bottom:5px;\\">תכולות</div><ul style=\\"margin:0;padding-right:16px;\\">";'
     +'  items.forEach(function(it){html+="<li style=\\"margin-bottom:3px;\\">"+it+"</li>";});'
     +'  html+="</ul>";'
     +'  st.innerHTML=html;'
