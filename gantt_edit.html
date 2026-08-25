@@ -91,8 +91,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 
 /* TIMELINE AREA */
 .tlwrap{flex:1;overflow:auto;min-width:0;direction:rtl;}
-.tlwrap::-webkit-scrollbar{height:5px;width:5px;}
-.tlwrap::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px;}
+.tlwrap::-webkit-scrollbar{height:16px;width:16px;}
+.tlwrap::-webkit-scrollbar-track{background:var(--bg);}
+.tlwrap::-webkit-scrollbar-thumb{background:#B4B2A9;border-radius:8px;border:3px solid var(--bg);}
+.tlwrap::-webkit-scrollbar-thumb:hover{background:var(--acc);}
 .tlinner{display:inline-block;position:relative;direction:ltr;}
 
 /* Sprint row */
