@@ -450,6 +450,10 @@ body:not(.edit-mode) .edit-only{display:none!important;}
   <!-- order in LTR: ppanel | sidebar | timeline -->
   <div class="ppanel" id="ppanel">
     <div class="ppanel-hdr">פרויקטים <span style="display:flex;gap:4px;"><button class="btn btn-sm edit-only" onclick="openPM()" title="הוסף פרויקט">+</button><button class="btn btn-sm edit-only" onclick="openParentPM()" title="הוסף פרויקט אב" style="font-size:10px;">📁</button></span></div>
+    <div style="padding:4px 8px;border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:5px;font-size:11px;">
+      <input type="checkbox" id="showInactiveProjChk" onchange="SHOW_INACTIVE_PROJ=this.checked;render();" style="cursor:pointer;"/>
+      <label for="showInactiveProjChk" style="cursor:pointer;color:var(--mut);">הצג פרויקטים לא פעילים</label>
+    </div>
     <div style="padding:4px 8px;border-bottom:1px solid var(--brd);">
       <select id="pm-filter" onchange="FPM=this.value;render();" style="width:100%;font-family:Heebo,sans-serif;font-size:11px;padding:3px 5px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);color:var(--txt);direction:rtl;">
         <option value="">כל מנהלי הפרויקטים</option>
@@ -698,6 +702,10 @@ body:not(.edit-mode) .edit-only{display:none!important;}
       </div>
       <div class="fld" id="ep-parent-fld"><label>פרויקט אב</label><select id="ep-parent"><option value="">ללא</option></select></div>
       <div class="fld"><label>צבע</label><div class="crow" id="ep-colors"></div></div>
+      <div class="fld" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="ep-inactive" style="cursor:pointer;"/>
+        <label for="ep-inactive" style="cursor:pointer;margin:0;">פרויקט לא פעיל (יוסתר כברירת מחדל מהפאנל)</label>
+      </div>
     </div>
     <div class="mfoot"><button class="btn" onclick="cm('epmodal')">ביטול</button><button class="btn btn-p" onclick="saveEditProject()">שמור</button></div>
   </div>
@@ -763,6 +771,7 @@ var TL_START=sunday(TODAY);
 var TL_WEEKS=64;
 var FP_SET=null;
 var FPM=""; // filter by project manager
+var SHOW_INACTIVE_PROJ=false; // הצג פרויקטים לא פעילים בפאנל
 
 function WW(){
   var base=Math.round(80*ZL/100);
@@ -1631,6 +1640,7 @@ function parentFilterState(ppid){
 function buildProjItem(p, isChild){
   var item=document.createElement('div'); item.className='pitem'+(isChild?' child':'');
   item.dataset.pid=p.id;
+  if(p.inactive)item.style.opacity='.55';
   // filter checkbox
   var chk=document.createElement('div');
   var isActive=FP_SET&&FP_SET.has(p.id);
@@ -1642,6 +1652,12 @@ function buildProjItem(p, isChild){
   var sq=document.createElement('div'); sq.className='psq'; sq.style.background=getDisplayColor(p);
   var nm=document.createElement('div'); nm.className='pname'; nm.title=(p.code?'['+p.code+'] ':'')+p.name;
   nm.textContent=p.name;
+  if(p.inactive){
+    var itag=document.createElement('span');
+    itag.style.cssText='font-size:9px;background:#888;color:#fff;border-radius:3px;padding:1px 4px;margin-right:4px;white-space:nowrap;';
+    itag.textContent='לא פעיל';
+    nm.appendChild(itag);
+  }
   if(p.status&&p.status!=='בביצוע'){
     var stag=document.createElement('span');
     stag.style.cssText='font-size:9px;background:rgba(0,0,0,.12);border-radius:3px;padding:1px 4px;margin-right:4px;white-space:nowrap;';
@@ -1720,13 +1736,13 @@ function renderProjPanel(){
     // children container
     var kids=document.createElement('div'); kids.className='pchildren';
     kids.style.display=isOpen?'block':'none';
-    var children=D.projects.filter(function(p){return p.parentId===pp.id;});
+    var children=D.projects.filter(function(p){return p.parentId===pp.id&&(SHOW_INACTIVE_PROJ||!p.inactive);});
     children.forEach(function(p){kids.appendChild(buildProjItem(p,true));});
     el.appendChild(kids);
   });
 
   // standalone projects (no parent)
-  D.projects.filter(function(p){return !p.parentId;}).forEach(function(p){
+  D.projects.filter(function(p){return !p.parentId&&(SHOW_INACTIVE_PROJ||!p.inactive);}).forEach(function(p){
     el.appendChild(buildProjItem(p,false));
   });
 }
@@ -2351,6 +2367,7 @@ function openEditProject(pid){
   if(document.getElementById('ep-pm'))document.getElementById('ep-pm').value=p.pm||'';
   if(document.getElementById('ep-gid'))document.getElementById('ep-gid').value=p.globalId||'';
   if(document.getElementById('ep-class'))document.getElementById('ep-class').value=p.classification||'';
+  if(document.getElementById('ep-inactive'))document.getElementById('ep-inactive').checked=!!p.inactive;
   om('epmodal');setTimeout(function(){document.getElementById('ep-name').focus();},200);
 }
 var selEpCol=0;
@@ -2376,6 +2393,7 @@ function saveEditProject(){
   p.classification=document.getElementById('ep-class')?document.getElementById('ep-class').value:'';
   p.pm=document.getElementById('ep-pm')?document.getElementById('ep-pm').value.trim():'';
   p.globalId=document.getElementById('ep-gid')?document.getElementById('ep-gid').value.trim()||undefined:undefined;
+  p.inactive=document.getElementById('ep-inactive')?document.getElementById('ep-inactive').checked:false;
   var parentId=document.getElementById('ep-parent')?document.getElementById('ep-parent').value:'';
   if(parentId){p.parentId=parentId;}else{delete p.parentId;}
   p.color=getChosenChildColorEp();
