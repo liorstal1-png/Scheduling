@@ -1234,25 +1234,29 @@ function renderSprintCutBody(TW,WW_){
 }
 
 // ── DRAG & RESIZE ──────────────────────────────────────────────────────────
+// מחלק את שאר המשימות של העובד ל"היו לפני העוגן" / "היו אחרי העוגן", לפי
+// המיקום ה*מקורי* שלהן ביחס למיקום ה*מקורי* של העוגן — נקרא פעם אחת בתחילת
+// הגרירה/שינוי הגודל, לא בכל תזוזה. חשוב: אם היינו מסווגים מחדש בכל תזוזה
+// לפי המיקום ה*חי* של העוגן, גרירה מהירה שקופצת ישר מעבר למשימה שכנה (בלי
+// לעצור בדיוק לידה) הייתה גורמת לה "להתחלף" קטגוריה תוך כדי גרירה — בדיוק
+// התופעה של "שתי משימות מתחלפות ביניהן" בגרירה רציפה/מהירה.
+function classifyPushOrder(fixedId,workerTasks){
+  var fixed=workerTasks.find(function(x){return x.id===fixedId;})||D.tasks.find(function(x){return x.id===fixedId;});
+  var fixedStartT=pd(fixed.start).getTime();
+  var others=workerTasks.filter(function(x){return x.id!==fixedId;})
+    .sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();});
+  return {
+    afterIds:others.filter(function(x){return pd(x.start).getTime()>=fixedStartT;}).map(function(x){return x.id;}),
+    beforeIds:others.filter(function(x){return pd(x.start).getTime()<fixedStartT;}).map(function(x){return x.id;})
+  };
+}
 // דוחף משימות אחרות של אותו עובד כדי שלא יחפפו את משימת העוגן (fixedId) —
-// בלי להזיז את משימת העוגן עצמה. משתמש בסדר ה*מקורי* (orderedOtherIds, שנקבע
-// פעם אחת בתחילת הגרירה/שינוי הגודל) ולא בסדר החי — כי אם ממיינים מחדש בכל
-// תזוזה, ברגע שהמשימה הנגררת "חוצה" ויזואלית משימה אחרת, סדר המיון מתחלף,
-// והפונקציה עלולה להזיז בטעות את המשימה הנגררת עצמה במקום את השכנה שלה
-// (זה בדיוק מה שנראה כאילו משימה "עוקפת" את השנייה).
-function resolvePushFixed(fixedId,orderedOtherIds){
+// בלי להזיז את משימת העוגן עצמה. מקבל סיווג before/after קבוע (ראה
+// classifyPushOrder) שלא משתנה תוך כדי הגרירה.
+function resolvePushFixed(fixedId,order){
   var fixed=D.tasks.find(function(x){return x.id===fixedId;});
   if(!fixed)return;
-  var fixedStartT=pd(fixed.start).getTime();
-
-  var afterIds=orderedOtherIds.filter(function(id){
-    var x=D.tasks.find(function(t2){return t2.id===id;});
-    return x&&pd(x.start).getTime()>=fixedStartT;
-  });
-  var beforeIds=orderedOtherIds.filter(function(id){
-    var x=D.tasks.find(function(t2){return t2.id===id;});
-    return x&&pd(x.start).getTime()<fixedStartT;
-  });
+  var afterIds=order.afterIds, beforeIds=order.beforeIds;
 
   // דחיפה קדימה של מה שהיה אחרי העוגן, בשרשרת, בלי תלות בסדר החי
   var chainEnd=fixed.end;
@@ -1332,11 +1336,9 @@ function startDrag(e,tid,worker,blk){
   D.tasks.filter(function(x){return x.wid===worker.id;}).forEach(function(x){
     origPos[x.id]={start:x.start,end:x.end,weeks:x.weeks||1};
   });
-  // סדר קבוע של שאר המשימות אצל העובד הזה, נקבע *פעם אחת* כאן ולא משתנה
-  // לאורך כל הגרירה — ראה הסבר ב-resolvePushFixed.
-  var orderedOtherIds=D.tasks.filter(function(x){return x.wid===worker.id&&x.id!==tid;})
-    .sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();})
-    .map(function(x){return x.id;});
+  // סיווג קבוע (לפני/אחרי) של שאר המשימות אצל העובד הזה, נקבע *פעם אחת* כאן
+  // ולא משתנה לאורך כל הגרירה — ראה הסבר ב-classifyPushOrder.
+  var pushOrder=classifyPushOrder(tid,D.tasks.filter(function(x){return x.wid===worker.id;}));
 
   function onMove(ev){
     if(!moved){
@@ -1359,7 +1361,7 @@ function startDrag(e,tid,worker,blk){
       D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;}).forEach(function(x){
         if(origPos[x.id]){x.start=origPos[x.id].start;x.end=origPos[x.id].end;x.weeks=origPos[x.id].weeks;}
       });
-      resolvePushFixed(tid,orderedOtherIds);
+      resolvePushFixed(tid,pushOrder);
       // update visuals
       D.tasks.forEach(function(x){
         if(x.id===tid)return;
@@ -1381,15 +1383,13 @@ function startDrag(e,tid,worker,blk){
           var nw=D.workers.find(function(x){return idEq(x.id,newWidRaw);});
           t.wid=nw?nw.id:newWidRaw;
           if(nw)blk.style.background=t.color||nw.color;
-          // עברנו לעובד אחר — יש לחשב מחדש את סדר המשימות הקבוע ואת המיקומים
+          // עברנו לעובד אחר — יש לחשב מחדש את סיווג המשימות והמיקומים
           // המקוריים ביחס לעובד *החדש*, אחרת הדחיפה תתייחס לעובד הלא נכון.
           origPos={};
           D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;}).forEach(function(x){
             origPos[x.id]={start:x.start,end:x.end,weeks:x.weeks||1};
           });
-          orderedOtherIds=D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;})
-            .sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();})
-            .map(function(x){return x.id;});
+          pushOrder=classifyPushOrder(tid,D.tasks.filter(function(x){return x.wid===t.wid;}));
         }
         break;
       }
@@ -1413,9 +1413,7 @@ function startResizeR(e,tid,blk){
   var t=D.tasks.find(function(x){return x.id===tid;});
   var os=t.start,sx=e.clientX;
   var origSpan=t.weeks||1;
-  var orderedOtherIds=D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;})
-    .sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();})
-    .map(function(x){return x.id;});
+  var pushOrder=classifyPushOrder(tid,D.tasks.filter(function(x){return x.wid===t.wid;}));
   function onMove(e){
     var d=Math.round(-(e.clientX-sx)/WW());
     var newSpan=Math.max(1,origSpan-d);
@@ -1423,7 +1421,7 @@ function startResizeR(e,tid,blk){
     t.weeks=newSpan;
     t.end=fd(addD(addW(pd(t.start),newSpan-1),6));
     blk.style.right=dateRight(t.start)+'px';blk.style.width=(newSpan*WW()-2)+'px';
-    resolvePushFixed(tid,orderedOtherIds);
+    resolvePushFixed(tid,pushOrder);
     D.tasks.forEach(function(x){
       if(x.id===tid)return;
       var b=document.querySelector('.blk[data-tid="'+x.id+'"]');
@@ -1442,16 +1440,14 @@ function startResizeL(e,tid,blk){
   var t=D.tasks.find(function(x){return x.id===tid;});
   var sx=e.clientX;
   var origSpan=t.weeks||1;
-  var orderedOtherIds=D.tasks.filter(function(x){return x.wid===t.wid&&x.id!==tid;})
-    .sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();})
-    .map(function(x){return x.id;});
+  var pushOrder=classifyPushOrder(tid,D.tasks.filter(function(x){return x.wid===t.wid;}));
   function onMove(e){
     var d=Math.round(-(e.clientX-sx)/WW());
     var newSpan=Math.max(1,origSpan+d);
     t.weeks=newSpan;
     t.end=fd(addD(addW(pd(t.start),newSpan-1),6));
     blk.style.width=(newSpan*WW()-2)+'px';
-    resolvePushFixed(tid,orderedOtherIds);
+    resolvePushFixed(tid,pushOrder);
     D.tasks.forEach(function(x){
       if(x.id===tid)return;
       var b=document.querySelector('.blk[data-tid="'+x.id+'"]');
