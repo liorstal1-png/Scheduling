@@ -702,6 +702,10 @@ body:not(.edit-mode) .edit-only{display:none!important;}
       </div>
       <div class="fld" id="ep-parent-fld"><label>פרויקט אב</label><select id="ep-parent"><option value="">ללא</option></select></div>
       <div class="fld"><label>צבע</label><div class="crow" id="ep-colors"></div></div>
+      <div class="fld">
+        <label>תכולות (מופרד בפסיקים) — יוצג בטולטיפ ב"מבט על"</label>
+        <textarea id="ep-scope" rows="3" placeholder="לדוגמה: מודול A, מודול B, אינטגרציה עם מערכת X" style="width:100%;font-family:Heebo,sans-serif;font-size:13px;padding:7px 9px;border:1px solid var(--brd);border-radius:var(--r);background:var(--bg);color:var(--txt);outline:none;direction:rtl;resize:vertical;"></textarea>
+      </div>
       <div class="fld" style="display:flex;align-items:center;gap:6px;">
         <input type="checkbox" id="ep-inactive" style="cursor:pointer;"/>
         <label for="ep-inactive" style="cursor:pointer;margin:0;">פרויקט לא פעיל (יוסתר כברירת מחדל מהפאנל)</label>
@@ -2368,6 +2372,7 @@ function openEditProject(pid){
   if(document.getElementById('ep-gid'))document.getElementById('ep-gid').value=p.globalId||'';
   if(document.getElementById('ep-class'))document.getElementById('ep-class').value=p.classification||'';
   if(document.getElementById('ep-inactive'))document.getElementById('ep-inactive').checked=!!p.inactive;
+  if(document.getElementById('ep-scope'))document.getElementById('ep-scope').value=p.scope||'';
   om('epmodal');setTimeout(function(){document.getElementById('ep-name').focus();},200);
 }
 var selEpCol=0;
@@ -2394,6 +2399,7 @@ function saveEditProject(){
   p.pm=document.getElementById('ep-pm')?document.getElementById('ep-pm').value.trim():'';
   p.globalId=document.getElementById('ep-gid')?document.getElementById('ep-gid').value.trim()||undefined:undefined;
   p.inactive=document.getElementById('ep-inactive')?document.getElementById('ep-inactive').checked:false;
+  p.scope=document.getElementById('ep-scope')?document.getElementById('ep-scope').value.trim():'';
   var parentId=document.getElementById('ep-parent')?document.getElementById('ep-parent').value:'';
   if(parentId){p.parentId=parentId;}else{delete p.parentId;}
   p.color=getChosenChildColorEp();
@@ -3168,7 +3174,7 @@ function openSummary(){
       var bgStyle=isAlBlk
         ?'background:'+dc+';background-image:repeating-linear-gradient(135deg,rgba(255,255,255,0) 0px,rgba(255,255,255,0) 6px,rgba(255,255,255,.3) 6px,rgba(255,255,255,.3) 8px);'
         :'background:'+dc+';';
-      blkContent+='<div style="position:absolute;top:8px;left:'+x+'px;width:'+w+'px;height:'+(RH-16)+'px;'+bgStyle+'border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.15);z-index:3;overflow:hidden;"><span style="font-size:10px;font-weight:600;white-space:nowrap;display:block;padding:2px 4px;color:'+(isAlBlk?'rgba(0,0,0,.7)':'#fff')+';">'+proj.name+'</span></div>';
+      blkContent+='<div class="proj-blk-cell"'+(proj.scope?' data-scope="'+proj.scope.replace(/"/g,'&quot;')+'"':'')+' style="position:absolute;top:8px;left:'+x+'px;width:'+w+'px;height:'+(RH-16)+'px;'+bgStyle+'border-radius:5px;box-shadow:0 1px 4px rgba(0,0,0,.15);z-index:3;overflow:hidden;'+(proj.scope?'cursor:help;':'')+'"><span style="font-size:10px;font-weight:600;white-space:nowrap;display:block;padding:2px 4px;color:'+(isAlBlk?'rgba(0,0,0,.7)':'#fff')+';">'+proj.name+(proj.scope?' ℹ️':'')+'</span></div>';
     });
     // תא wrapper לכל הרוחב
     rowCells='<td colspan="'+TL_WEEKS+'" style="position:relative;height:'+RH+'px;border-bottom:1px solid #E0DED8;padding:0;">'+blkContent+'</td>';
@@ -3285,6 +3291,7 @@ function openSummary(){
     +'</div>'
     +'</div></div>'
     +'<div id="ms-tt" style="position:fixed;font-size:11px;font-weight:600;padding:4px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:999;box-shadow:0 2px 8px rgba(0,0,0,.25);display:none;color:#fff;"></div>'
+    +'<div id="scope-tt" style="position:fixed;background:#1E3A5F;color:#fff;font-size:12px;padding:10px 14px;border-radius:8px;pointer-events:none;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.3);display:none;max-width:280px;line-height:1.7;"></div>'
     +'<div id="np-resize"></div>'
     +'<script>'
     +'var H=new Set();'
@@ -3310,6 +3317,18 @@ function openSummary(){
     +'if(tl)tl.addEventListener("scroll",function(){var inner=document.getElementById("np-inner");if(inner)inner.style.top=(-tl.scrollTop)+"px";},{passive:true});'
     +'document.addEventListener("mouseover",function(e){var d=e.target.closest(".ms-dot-summary");var t=document.getElementById("ms-tt");if(d){t.textContent=d.dataset.name+" \xb7 "+d.dataset.date;t.style.background=d.dataset.color;t.style.display="block";}else{t.style.display="none";}});'
     +'document.addEventListener("mousemove",function(e){var t=document.getElementById("ms-tt");if(t&&t.style.display!=="none"){t.style.left=(e.clientX+10)+"px";t.style.top=(e.clientY-28)+"px";}});'
+    +'document.addEventListener("mouseover",function(e){'
+    +'  var cell=e.target.closest(".proj-blk-cell[data-scope]");'
+    +'  var st=document.getElementById("scope-tt");'
+    +'  if(!cell){st.style.display="none";return;}'
+    +'  var items=cell.getAttribute("data-scope").split(",").map(function(s){return s.trim();}).filter(Boolean);'
+    +'  var html="<div style=\\"font-weight:700;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,.25);padding-bottom:5px;\\">📋 תכולות</div><ul style=\\"margin:0;padding-right:16px;\\">";'
+    +'  items.forEach(function(it){html+="<li style=\\"margin-bottom:3px;\\">"+it+"</li>";});'
+    +'  html+="</ul>";'
+    +'  st.innerHTML=html;'
+    +'  st.style.display="block";'
+    +'});'
+    +'document.addEventListener("mousemove",function(e){var st=document.getElementById("scope-tt");if(st&&st.style.display!=="none"){var x=e.clientX+14,y=e.clientY+14;if(x+290>window.innerWidth)x=e.clientX-290;st.style.left=x+"px";st.style.top=y+"px";}});'
     +'document.addEventListener("click",function(e){var hdr=e.target.closest(".pp-hdr-name");if(!hdr)return;var ppid=hdr.getAttribute("data-ppid");var arrow=hdr.querySelector(".pp-arrow-s");var open=arrow&&arrow.innerHTML==="&#9660;";document.querySelectorAll("[data-ppid]").forEach(function(r){if(r.getAttribute("data-ppid")===ppid&&r!==hdr.closest("tr"))r.style.display=open?"none":"";});if(arrow)arrow.innerHTML=open?"&#9654;":"&#9660;";});'
     +'(function(){var rh=document.getElementById("np-resize");if(!rh)return;var nw=160,sx=0,sw=0,dr=false;rh.addEventListener("mousedown",function(e){dr=true;sx=e.clientX;sw=nw;document.body.style.userSelect="none";e.preventDefault();});document.addEventListener("mousemove",function(e){if(!dr)return;nw=Math.max(100,Math.min(350,sw+(sx-e.clientX)));document.documentElement.style.setProperty("--np-w",nw+"px");rh.style.right=nw+"px";});document.addEventListener("mouseup",function(){if(!dr)return;dr=false;document.body.style.userSelect="";});rh.style.right=nw+"px";})();'
     +'<\/script>'
