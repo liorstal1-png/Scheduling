@@ -436,6 +436,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
         <button class="btn btn-sm" onclick="quickRange(24)">6 חודשים</button>
         <button class="btn btn-sm" onclick="quickRange(52)">שנה</button>
         <button class="btn btn-sm" onclick="quickRange(104)">שנתיים</button>
+        <button class="btn btn-sm" onclick="quickRangeCurrentSprint()">🏁 מתחילת הספרינט הנוכחי</button>
         <button class="btn btn-sm" onclick="quickRangeFromStart()">📍 מתחילת התוכנית</button>
       </div>
     </div>
@@ -2165,6 +2166,15 @@ function quickRangeFromStart(){
   toast('📍 טווח הותאם לתוכנית — מ-'+fd(start));
 }
 window.quickRangeFromStart=quickRangeFromStart;
+
+function quickRangeCurrentSprint(){
+  var todayIdx=Math.round(diffW(TL_START,TODAY));
+  var sp=resolveWeekSprint(todayIdx);
+  if(!sp){toast('⚠️ לא נמצא ספרינט נוכחי — ודא שיש הגדרת ספרינטים');return;}
+  document.getElementById('range-s').value=sp.start;
+  toast('🏁 טווח הותאם לתחילת '+sp.name);
+}
+window.quickRangeCurrentSprint=quickRangeCurrentSprint;
 function applyQuickRange(w){
   TL_WEEKS=w;
   var availW=document.getElementById('tlwrap').clientWidth||800;
