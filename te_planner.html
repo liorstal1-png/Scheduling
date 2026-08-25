@@ -436,6 +436,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
         <button class="btn btn-sm" onclick="quickRange(24)">6 חודשים</button>
         <button class="btn btn-sm" onclick="quickRange(52)">שנה</button>
         <button class="btn btn-sm" onclick="quickRange(104)">שנתיים</button>
+        <button class="btn btn-sm" onclick="quickRangeFromStart()">📍 מתחילת התוכנית</button>
       </div>
     </div>
     <div class="mfoot"><button class="btn" onclick="cm('rangemodal')">ביטול</button><button class="btn btn-p" id="applyRangeBtn">החל</button></div>
@@ -2149,6 +2150,21 @@ function openSprintModal(sid){_eSid=sid||null;var s=sid?D.sprints.find(function(
 function saveSprint(){var name=document.getElementById('spr-name').value.trim();var start=document.getElementById('spr-start').value;var weeks=parseInt(document.getElementById('spr-weeks').value)||2;if(!name||!start)return;var end=fd(addD(addW(pd(start),weeks),-1));snapshot();if(_eSid){var s=D.sprints.find(function(x){return x.id===_eSid;});s.name=name;s.start=start;s.end=end;}else D.sprints.push({id:D.nextSid++,name:name,start:start,end:end});cm('sprmodal');render();toast('ספרינט נשמר ✓');}
 
 function quickRange(w){document.getElementById('range-s').value=fd(TL_START);document.getElementById('range-w').value=w;}
+function quickRangeFromStart(){
+  var minDate=null,maxDate=null;
+  D.tasks.forEach(function(t){
+    var s=pd(t.start),e=pd(t.end);
+    if(!minDate||s<minDate)minDate=s;
+    if(!maxDate||e>maxDate)maxDate=e;
+  });
+  if(!minDate){toast('⚠️ אין עדיין משימות בתוכנית');return;}
+  var start=sundayBefore(minDate);
+  var weeks=Math.min(200,Math.max(4,Math.ceil(diffW(start,maxDate))+2)); // ריפוד קטן בסוף
+  document.getElementById('range-s').value=fd(start);
+  document.getElementById('range-w').value=weeks;
+  toast('📍 טווח הותאם לתוכנית — מ-'+fd(start));
+}
+window.quickRangeFromStart=quickRangeFromStart;
 function applyQuickRange(w){
   TL_WEEKS=w;
   var availW=document.getElementById('tlwrap').clientWidth||800;
