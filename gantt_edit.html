@@ -405,6 +405,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
     <div id="more-menu" style="display:none;position:absolute;top:100%;left:0;background:var(--sur);border:1px solid var(--brd);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:100;min-width:150px;padding:4px 0;margin-top:2px;direction:rtl;">
       <div class="ci" onclick="openSummary();document.getElementById('more-menu').style.display='none';">📊 מבט על</div>
       <div class="ci" onclick="openAnalytics();document.getElementById('more-menu').style.display='none';">📈 ניתוחים</div>
+      <div class="ci" onclick="openSprintReport();document.getElementById('more-menu').style.display='none';">🏁 דוח ספרינטים</div>
       <div style="height:1px;background:var(--brd);margin:4px 0;"></div>
       <div class="ci" id="toggle-al-mi" onclick="toggleShowAl();">👁 הצג שיבוץ על</div>
 
@@ -498,6 +499,28 @@ body:not(.edit-mode) .edit-only{display:none!important;}
       </div>
     </div>
     <div class="mfoot"><button class="btn" onclick="cm('wmodal')">ביטול</button><button class="btn btn-p" onclick="saveWorker()">שמור</button></div>
+  </div>
+</div>
+
+<!-- Sprint report modal -->
+<div class="ov" id="sprintReportModal" onclick="if(event.target===this)cm('sprintReportModal')">
+  <div class="modal" id="sprintReportBox" style="max-width:1100px;width:92vw;resize:both;overflow:auto;min-width:480px;min-height:320px;">
+    <div class="mhdr" style="align-items:center;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="zbtn" id="srPrevBtn" title="ספרינט קודם">›</button>
+        <div>
+          <div class="mtitle" id="srSprintName" style="font-size:15px;">🏁 ספרינטים</div>
+          <div id="srSprintRange" style="font-size:11px;color:var(--mut);"></div>
+        </div>
+        <button class="zbtn" id="srNextBtn" title="ספרינט הבא">‹</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="btn btn-sm" id="srViewToggleBtn">🔲 מבט מלא</button>
+        <button class="zbtn" id="srFullBtn" title="הגדל/שחזר">⛶</button>
+        <button class="mx" onclick="cm('sprintReportModal')">✕</button>
+      </div>
+    </div>
+    <div class="mbody" id="sprintReportBody" style="max-height:75vh;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -3401,6 +3424,195 @@ function exportWorkers(){
 }
 
 // ── analytics ────────────────────────────────────────────────────────────────
+// ── דוח ספרינטים — מי משובץ למה, ספרינט אחד בכל פעם ────────────────────────
+var _srSprintIdx=0;
+function _srSortedSprints(){
+  return (D.sprints||[]).slice().sort(function(a,b){return pd(a.start).getTime()-pd(b.start).getTime();});
+}
+function _srGroups(){
+  var ORDER=['מודלים','תוכנה','QA'];
+  function groupOrder(teamObj){
+    if(!teamObj)return 9999;
+    var w=D.workers.find(function(w){return w.team===teamObj.id&&w.group;});
+    if(!w||!w.group)return 9998;
+    var grp=D.groups.find(function(g){return g.id===w.group;});
+    if(!grp)return 9997;
+    var idx=ORDER.indexOf(grp.name);
+    return idx>=0?idx:D.groups.findIndex(function(g){return g.id===w.group;});
+  }
+  var sortedTeams=D.teams.slice().sort(function(a,b){return groupOrder(a)-groupOrder(b);});
+  var gs=[];
+  sortedTeams.forEach(function(t){var tw=D.workers.filter(function(w){return w.team===t.id;});if(tw.length)gs.push({team:t,workers:tw});});
+  var no=D.workers.filter(function(w){return !w.team||!D.teams.find(function(t){return t.id===w.team;});});
+  if(no.length)gs.push({team:null,workers:no});
+  return gs;
+}
+function openSprintReport(){
+  var sorted=_srSortedSprints();
+  if(!sorted.length){showToast('אין ספרינטים מוגדרים');return;}
+  var todayT=TODAY.getTime();
+  var idx=sorted.findIndex(function(s){return pd(s.end).getTime()>=todayT;});
+  _srSprintIdx=idx>=0?idx:sorted.length-1;
+  renderSprintReport();
+  om('sprintReportModal');
+}
+var _srViewMode='detail';
+function renderSprintReport(){
+  document.getElementById('srPrevBtn').style.display=_srViewMode==='detail'?'':'none';
+  document.getElementById('srNextBtn').style.display=_srViewMode==='detail'?'':'none';
+  if(_srViewMode==='matrix')renderSprintMatrix();
+  else renderSprintDetailView();
+}
+function renderSprintDetailView(){
+  var sorted=_srSortedSprints();
+  if(!sorted.length)return;
+  _srSprintIdx=Math.max(0,Math.min(sorted.length-1,_srSprintIdx));
+  var visible=sorted.slice(_srSprintIdx,_srSprintIdx+3);
+  document.getElementById('srSprintName').textContent='🏁 '+visible.map(function(s){return s.name;}).join(' · ');
+  document.getElementById('srSprintRange').textContent=visible[0].start+' → '+visible[visible.length-1].end;
+  document.getElementById('srPrevBtn').disabled=(_srSprintIdx<=0);
+  document.getElementById('srNextBtn').disabled=(_srSprintIdx>=sorted.length-1);
+
+  var groups=_srGroups();
+  var colsHtml=visible.map(function(sp){
+    var sStart=pd(sp.start).getTime(), sEnd=pd(sp.end).getTime();
+    var inner='';
+    groups.forEach(function(g){
+      var col=g.team?getGroupColor(g.team):'#888';
+      inner+='<div style="margin-bottom:12px;">';
+      inner+='<div style="padding:6px 10px;background:'+col+';color:#fff;border-radius:8px;font-weight:700;font-size:12px;margin-bottom:5px;">'+(g.team?g.team.name:'ללא צוות')+'</div>';
+      g.workers.forEach(function(w){
+        var assigns=D.assignments.filter(function(a){
+          if(a.workerId!==w.id)return false;
+          var as=pd(a.start).getTime(), ae=pd(a.end).getTime();
+          return as<=sEnd&&ae>=sStart;
+        });
+        inner+='<div style="padding:5px 6px;border-bottom:1px solid var(--brd);">';
+        inner+='<div style="font-size:11px;font-weight:600;margin-bottom:3px;">'+w.name+'</div>';
+        inner+='<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+        if(!assigns.length){
+          inner+='<span style="font-size:10px;color:var(--mut);">— לא משובץ —</span>';
+        }else{
+          assigns.forEach(function(a){
+            if(a.absence){
+              inner+='<span style="background:#555;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;">🌴 '+(a.absenceReason||'העדרות')+'</span>';
+            }else{
+              var proj=D.projects.find(function(p){return p.id===a.projectId;});
+              if(!proj)return;
+              inner+='<span style="background:'+proj.color+';color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;">'+proj.name+'</span>';
+            }
+          });
+        }
+        inner+='</div></div>';
+      });
+      inner+='</div>';
+    });
+    return '<div style="flex:1;min-width:0;background:var(--bg);border-radius:10px;padding:10px;">'
+      +'<div style="text-align:center;font-weight:700;font-size:13px;color:#1D9E75;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid #cfe9de;">🏁 '+sp.name+'<div style="font-weight:400;font-size:10px;color:var(--mut);">'+sp.start+' → '+sp.end+'</div></div>'
+      +(inner||'<div style="color:var(--mut);font-size:11px;">אין עובדים</div>')
+      +'</div>';
+  }).join('');
+  document.getElementById('sprintReportBody').innerHTML='<div style="display:flex;gap:10px;align-items:flex-start;">'+colsHtml+'</div>';
+}
+
+// ── מבט מלא (heatmap) — כל העובדים × כל הספרינטים בבת אחת ──────────────────
+function renderSprintMatrix(){
+  var todayT=TODAY.getTime();
+  var sorted=_srSortedSprints().filter(function(s){return pd(s.end).getTime()>=todayT;});
+  if(!sorted.length){document.getElementById('sprintReportBody').innerHTML='<div style="color:var(--mut);">אין ספרינטים עתידיים</div>';return;}
+  document.getElementById('srSprintName').textContent='🔲 מבט מלא — מהספרינט הנוכחי והלאה';
+  document.getElementById('srSprintRange').textContent=sorted[0].start+' → '+sorted[sorted.length-1].end;
+
+  var groups=_srGroups();
+  var CELL_W=34;
+  var tableHtml='<div style="overflow-x:auto;">';
+  tableHtml+='<table style="border-collapse:collapse;font-family:Heebo,sans-serif;direction:rtl;">';
+  // כותרת ספרינטים
+  tableHtml+='<thead><tr>';
+  tableHtml+='<th style="position:sticky;right:0;background:var(--sur);z-index:2;min-width:120px;text-align:right;padding:4px 8px;border-bottom:2px solid var(--brd);font-size:11px;">עובד</th>';
+  sorted.forEach(function(sp){
+    tableHtml+='<th style="width:'+CELL_W+'px;min-width:'+CELL_W+'px;padding:2px;border-bottom:2px solid var(--brd);" title="'+sp.name+' ('+sp.start+' → '+sp.end+')">';
+    tableHtml+='<div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:9px;font-weight:600;color:var(--mut);height:70px;display:flex;align-items:center;justify-content:center;white-space:nowrap;">'+sp.name+'</div>';
+    tableHtml+='</th>';
+  });
+  tableHtml+='</tr></thead><tbody>';
+
+  groups.forEach(function(g){
+    var gcol=g.team?getGroupColor(g.team):'#888';
+    tableHtml+='<tr><td colspan="'+(sorted.length+1)+'" style="padding:4px 8px;background:'+gcol+';color:#fff;font-weight:700;font-size:11px;">'+(g.team?g.team.name:'ללא צוות')+'</td></tr>';
+    g.workers.forEach(function(w){
+      tableHtml+='<tr>';
+      tableHtml+='<td style="position:sticky;right:0;background:var(--sur);z-index:1;padding:4px 8px;font-size:11px;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--brd);">'+w.name+'</td>';
+      sorted.forEach(function(sp){
+        var sStart=pd(sp.start).getTime(), sEnd=pd(sp.end).getTime();
+        var assigns=D.assignments.filter(function(a){
+          if(a.workerId!==w.id)return false;
+          var as=pd(a.start).getTime(), ae=pd(a.end).getTime();
+          return as<=sEnd&&ae>=sStart;
+        });
+        tableHtml+='<td style="padding:2px;border-bottom:1px solid var(--brd);">';
+        if(!assigns.length){
+          tableHtml+='<div style="width:'+(CELL_W-6)+'px;height:20px;background:#F0EEE8;border-radius:3px;margin:0 auto;"></div>';
+        }else{
+          tableHtml+='<div style="display:flex;gap:1px;height:20px;">';
+          assigns.forEach(function(a){
+            var bg,title;
+            if(a.absence){bg='#555';title=a.absenceReason||'העדרות';}
+            else{var proj=D.projects.find(function(p){return p.id===a.projectId;});if(!proj)return;bg=proj.color;title=proj.name;}
+            tableHtml+='<div style="flex:1;background:'+bg+';border-radius:2px;" title="'+title+'"></div>';
+          });
+          tableHtml+='</div>';
+        }
+        tableHtml+='</td>';
+      });
+      tableHtml+='</tr>';
+    });
+  });
+  tableHtml+='</tbody></table></div>';
+
+  // מקרא צבעי פרויקטים — מוצג בצד שמאל (בעמודה ה-2 בקוד, שמתייצבת שמאלה ב-RTL)
+  var legendHtml='<div style="min-width:150px;max-width:190px;flex-shrink:0;background:var(--bg);border-radius:8px;padding:10px;">';
+  legendHtml+='<div style="font-weight:700;font-size:11px;margin-bottom:8px;color:var(--mut);">מקרא פרויקטים</div>';
+  D.projects.forEach(function(p){
+    legendHtml+='<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;">';
+    legendHtml+='<span style="width:12px;height:12px;border-radius:3px;background:'+p.color+';flex-shrink:0;display:inline-block;"></span>';
+    legendHtml+='<span style="font-size:11px;">'+p.name+'</span>';
+    legendHtml+='</div>';
+  });
+  legendHtml+='<div style="display:flex;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--brd);">';
+  legendHtml+='<span style="width:12px;height:12px;border-radius:3px;background:#555;flex-shrink:0;display:inline-block;"></span>';
+  legendHtml+='<span style="font-size:11px;">🌴 העדרות</span>';
+  legendHtml+='</div>';
+  legendHtml+='<div style="display:flex;align-items:center;gap:6px;margin-top:5px;">';
+  legendHtml+='<span style="width:12px;height:12px;border-radius:3px;background:#F0EEE8;flex-shrink:0;display:inline-block;border:1px solid var(--brd);"></span>';
+  legendHtml+='<span style="font-size:11px;color:var(--mut);">לא משובץ</span>';
+  legendHtml+='</div>';
+  legendHtml+='</div>';
+
+  document.getElementById('sprintReportBody').innerHTML='<div style="display:flex;gap:12px;align-items:flex-start;">'+tableHtml+legendHtml+'</div>';
+}
+
+document.getElementById('srViewToggleBtn').addEventListener('click',function(){
+  _srViewMode=_srViewMode==='detail'?'matrix':'detail';
+  this.textContent=_srViewMode==='detail'?'🔲 מבט מלא':'◀▶ 3 ספרינטים';
+  renderSprintReport();
+});
+document.getElementById('srPrevBtn').addEventListener('click',function(){_srSprintIdx=Math.max(0,_srSprintIdx-1);renderSprintReport();});
+document.getElementById('srNextBtn').addEventListener('click',function(){_srSprintIdx=Math.min(_srSortedSprints().length-1,_srSprintIdx+1);renderSprintReport();});
+document.getElementById('srFullBtn').addEventListener('click',function(){
+  var box=document.getElementById('sprintReportBox');
+  var isFull=box.classList.toggle('sr-full');
+  if(isFull){
+    box.dataset.prevStyle=box.getAttribute('style')||'';
+    box.style.cssText='max-width:98vw;width:98vw;height:94vh;resize:none;overflow:auto;';
+    document.getElementById('sprintReportBody').style.maxHeight='calc(94vh - 70px)';
+  }else{
+    box.setAttribute('style',box.dataset.prevStyle||'max-width:1100px;width:92vw;resize:both;overflow:auto;min-width:480px;min-height:320px;');
+    document.getElementById('sprintReportBody').style.maxHeight='75vh';
+  }
+});
+window.openSprintReport=openSprintReport;
+
 function openAnalytics(){
   var win=window.open('','_blank');
   var sprOpts='<option value="">כל הטווח</option>';
