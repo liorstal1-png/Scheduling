@@ -1103,7 +1103,7 @@ function renderBody(TW,WW_){
         var primaryW=D.workers.find(function(w){return w.id===t.wid;});
         var col=t.color||(primaryW?primaryW.color:row.obj.color);
         var blk=document.createElement('div');blk.className='blk'+(selectedTids.has(+t.id)?' sel':'');blk.dataset.tid=String(t.id);
-        blk.style.cssText='right:'+r+'px;width:'+bw+'px;background:'+col+';'+(t.completed?'outline:3px solid #1D9E75;outline-offset:-2px;':(t.risk?'outline:2px solid #E24B4A;outline-offset:-2px;':''));
+        blk.style.cssText='right:'+r+'px;width:'+bw+'px;background:'+col+';'+(t.completed?'outline:4px solid #00E676;outline-offset:-2px;box-shadow:0 0 0 2px #fff, 0 0 10px 2px rgba(0,230,118,.75);':(t.risk?'outline:2px solid #E24B4A;outline-offset:-2px;':''));
         blk.innerHTML='<div class="rhandle-r"></div><div class="dep-dot dep-dot-r" data-tid="'+String(t.id)+'" data-side="start"></div><span class="blk-check" title="סמן כהושלם">'+(t.completed?'☑':'☐')+'</span><span class="btitle">'+t.name+'</span>'+(t.note?'<span class="blk-note-dot" title="" data-note="'+t.note.replace(/"/g,'&quot;')+'">!</span>':'')+'<button class="blk-opts">⋯</button><button class="blk-del" title="מחק">✕</button><div class="dep-dot dep-dot-l" data-tid="'+String(t.id)+'" data-side="end"></div><div class="rhandle-l"></div>';
         blk.querySelector('.blk-opts').addEventListener('click',function(e){e.stopPropagation();openBlockCtx(e,t.id);});
         blk.querySelector('.blk-check').addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault();});
