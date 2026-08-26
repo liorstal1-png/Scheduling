@@ -832,7 +832,7 @@ function renderSidebar(){
         lbl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();lbl.blur();}e.stopPropagation();});
         lbl.addEventListener('blur',function(){var v=lbl.textContent.trim();if(v)g.name=v;saveData();});
         addBtn.addEventListener('click',function(e){e.stopPropagation();openTeamModal(null,g.id);});
-        (function(gid){addWBtn.addEventListener('click',function(e){e.stopPropagation();openImportOrgModal();});})(g.id);
+        (function(gid){addWBtn.addEventListener('click',function(e){e.stopPropagation();openWorkerModal(null,null,gid);});})(g.id);
         // edit button
         var eBtn=document.createElement('button');eBtn.className='row-del';eBtn.textContent='✏️';eBtn.title='ערוך קבוצה';
         el.insertBefore(eBtn,del);
@@ -844,15 +844,14 @@ function renderSidebar(){
       el.className='tree-team-hdr';
       var tog=document.createElement('span');tog.className='tree-toggle';tog.textContent=collapsed.teams[row.obj.id]?'▶':'▼';
       var lbl=document.createElement('span');lbl.className='tree-label team-lbl';lbl.contentEditable='true';lbl.spellcheck=false;lbl.textContent=row.obj.name;
-      var addBtn=document.createElement('button');addBtn.className='btn btn-sm';addBtn.style.cssText='padding:1px 7px;font-size:11px;font-weight:400;line-height:1;margin-right:auto;color:var(--mut);background:transparent;border:none;';addBtn.textContent='+ צוות';
-      var addWBtn=document.createElement('button');addWBtn.style.cssText='padding:1px 6px;font-size:11px;background:transparent;border:none;cursor:pointer;color:var(--mut);line-height:1;';addWBtn.textContent='+ עובד';
+      var addWBtn=document.createElement('button');addWBtn.style.cssText='padding:1px 6px;font-size:11px;background:transparent;border:none;cursor:pointer;color:var(--mut);line-height:1;margin-right:auto;';addWBtn.textContent='+ עובד';
       var del=document.createElement('button');del.className='row-del';del.textContent='×';
-      el.appendChild(tog);el.appendChild(lbl);el.appendChild(addWBtn);el.appendChild(addBtn);el.appendChild(del);
+      el.appendChild(tog);el.appendChild(lbl);el.appendChild(addWBtn);el.appendChild(del);
       (function(t){
         lbl.addEventListener('click',function(e){e.stopPropagation();});
         lbl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();lbl.blur();}e.stopPropagation();});
         lbl.addEventListener('blur',function(){var v=lbl.textContent.trim();if(v)t.name=v;saveData();});
-        addBtn.addEventListener('click',function(e){e.stopPropagation();openImportOrgModal();});
+        addWBtn.addEventListener('click',function(e){e.stopPropagation();openWorkerModal(null,t.id,t.gid);});
         // edit button
         var eBtn=document.createElement('button');eBtn.className='row-del';eBtn.textContent='✏️';eBtn.title='ערוך צוות';
         el.insertBefore(eBtn,del);
@@ -2145,7 +2144,7 @@ window.openReplaceWorkerModal=openReplaceWorkerModal;
 window.renderReplaceWorkerList=renderReplaceWorkerList;
 window.doReplaceWorker=doReplaceWorker;
 
-function openWorkerModal(wid,tid){
+function openWorkerModal(wid,tid,presetGid){
   if(!D.groups.length){toast('⚠️ צריך להוסיף קבוצה אחת לפחות לפני הוספת עובד');return;}
   _eWid=wid||null;
   var w=wid?D.workers.find(function(x){return x.id===wid;}):null;
@@ -2153,16 +2152,13 @@ function openWorkerModal(wid,tid){
   document.getElementById('wm-name').value=w?w.name:'';
   document.getElementById('wm-gid').value=w?w.globalId||'':'';
   // find worker's current group
-  // tid can be negative = -gid (from group's + עובד button)
-  var passedGid=tid&&tid<0?-tid:null;
-  var realTid=tid&&tid>0?tid:null;
   var curTeam=w&&w.tid?D.teams.find(function(t){return t.id===w.tid;}):
-              (realTid?D.teams.find(function(t){return t.id===realTid;}):null);
-  var curGid=curTeam?curTeam.gid:(passedGid||(w?w.gid:null));
+              (tid?D.teams.find(function(t){return t.id===tid;}):null);
+  var curGid=curTeam?curTeam.gid:(presetGid!=null?presetGid:(w?w.gid:null));
   // populate group selector — פשוט: רשימת הקבוצות הקיימות בתוכנית, בלי אפשרות "ללא קבוצה"
   var gSel=document.getElementById('wm-group');
   gSel.innerHTML=D.groups.map(function(g){return '<option value="'+g.id+'">'+g.name+'</option>';}).join('');
-  gSel.value=curGid||D.groups[0].id;
+  gSel.value=(curGid!=null?curGid:D.groups[0].id);
   // populate team selector based on group
   function refreshTeams(gid){
     var tSel=document.getElementById('wm-team');
@@ -2177,7 +2173,7 @@ function openWorkerModal(wid,tid){
   }
   refreshTeams(resolveSelectedGid());
   // preselect team if passed
-  if(realTid)document.getElementById('wm-team').value=realTid;
+  if(tid)document.getElementById('wm-team').value=tid;
   function refreshColors(){
     var gid=resolveSelectedGid();
     var grp=gid!=null?D.groups.find(function(g){return g.id===gid;}):null;
