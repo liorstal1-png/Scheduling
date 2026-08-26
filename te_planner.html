@@ -360,7 +360,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
     <div class="mbody">
       <div class="fld"><label>שם</label><input id="wm-name" placeholder="שם העובד..."/></div>
       <div class="fld"><label>מזהה עובד <span style="font-size:10px;color:var(--mut);font-weight:400;">(לקישור עם שיבוץ)</span></label><input id="wm-gid" placeholder="EMP001, alon.cohen..." style="font-family:monospace;"/></div>
-      <div class="fld"><label>קבוצה</label><select id="wm-group"></select></div>
+      <div class="fld"><label>קבוצה *</label><select id="wm-group"></select></div>
       <div class="fld"><label>צוות (אופציונלי)</label><select id="wm-team"></select></div>
       <div class="fld"><label>צבע</label><div class="crow" id="wm-colors"></div></div>
     </div>
@@ -527,6 +527,18 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
       <button class="btn" onclick="cm('offProjModal')">ביטול</button>
       <button class="btn btn-p" onclick="saveOffProject()">שמור</button>
     </div>
+  </div>
+</div>
+
+<!-- Replace worker modal -->
+<div class="ov" id="replaceWorkerModal" onclick="if(event.target===this)cm('replaceWorkerModal')">
+  <div class="modal" style="max-width:340px;">
+    <div class="mhdr"><span class="mtitle">🔄 החלף עובד בשורה</span><button class="mx" onclick="cm('replaceWorkerModal')">✕</button></div>
+    <div class="mbody">
+      <div class="fld"><input id="rw-search" placeholder="חיפוש עובד מהשיבוץ..." oninput="renderReplaceWorkerList()"/></div>
+      <div id="rw-list" style="max-height:320px;overflow-y:auto;"></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="cm('replaceWorkerModal')">ביטול</button></div>
   </div>
 </div>
 
@@ -850,12 +862,14 @@ function renderSidebar(){
       el.className='tree-worker-row';
       var dot=document.createElement('div');dot.className='wdot';dot.style.background=row.obj.color;
       var nm=document.createElement('span');nm.className='wname-edit';nm.contentEditable='true';nm.spellcheck=false;nm.textContent=row.obj.name;
+      var rBtn=document.createElement('button');rBtn.className='row-del';rBtn.textContent='🔄';rBtn.title='החלף עובד בשורה זו';
       var eBtn=document.createElement('button');eBtn.className='row-del';eBtn.textContent='✏️';eBtn.title='ערוך עובד';
       var del=document.createElement('button');del.className='row-del';del.textContent='×';
-      el.appendChild(dot);el.appendChild(nm);el.appendChild(eBtn);el.appendChild(del);
+      el.appendChild(dot);el.appendChild(nm);el.appendChild(rBtn);el.appendChild(eBtn);el.appendChild(del);
       (function(w){
         dot.addEventListener('click',function(e){e.stopPropagation();openCP(e,{type:'worker',wid:w.id});});
         nm.addEventListener('blur',function(){w.name=nm.textContent.trim()||w.name;saveData();});
+        rBtn.addEventListener('click',function(e){e.stopPropagation();openReplaceWorkerModal(w.id);});
         eBtn.addEventListener('click',function(e){e.stopPropagation();openWorkerModal(w.id,w.tid);});
         del.addEventListener('click',function(e){e.stopPropagation();if(!confirm('למחוק עובד?'))return;snapshot();D.workers=D.workers.filter(function(x){return x.id!==w.id;});D.tasks=D.tasks.filter(function(x){return x.wid!==w.id;});render();});
       })(row.obj);
@@ -2053,6 +2067,61 @@ function saveTeam(){
   else D.teams.push({id:D.nextTmid++,name:name,gid:gid});
   cm('tmmodal');render();
 }
+// ── החלפת עובד בשורה ────────────────────────────────────────────────────
+var _rwOldWorkerId=null;
+function openReplaceWorkerModal(oldWorkerId){
+  _rwOldWorkerId=oldWorkerId;
+  document.getElementById('rw-search').value='';
+  loadGanttData().then(function(){renderReplaceWorkerList();});
+  renderReplaceWorkerList();
+  om('replaceWorkerModal');
+  setTimeout(function(){document.getElementById('rw-search').focus();},50);
+}
+function renderReplaceWorkerList(){
+  var q=(document.getElementById('rw-search').value||'').trim().toLowerCase();
+  var org=getOrgFromGantt();
+  var list=document.getElementById('rw-list');
+  list.innerHTML='';
+  var candidates=(org.workers||[]).filter(function(w){return !q||(w.name||'').toLowerCase().indexOf(q)!==-1;});
+  if(!candidates.length){
+    list.innerHTML='<div style="color:var(--mut);font-size:12px;padding:8px;">לא נמצאו עובדים ברשימת השיבוץ. ודא שיש חיבור לענן.</div>';
+    return;
+  }
+  candidates.forEach(function(orgW){
+    var already=D.workers.find(function(x){return idEq(x.id,orgW.id);});
+    var row=document.createElement('div');
+    row.className='ci';
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:8px 10px;'+(already?'opacity:.45;cursor:default;':'cursor:pointer;');
+    var dot=document.createElement('span');dot.style.cssText='width:10px;height:10px;border-radius:50%;background:'+(orgW.color||'#999')+';flex-shrink:0;display:inline-block;';
+    var nm=document.createElement('span');nm.textContent=orgW.name+(already?' (כבר בתוכנית)':'');
+    row.appendChild(dot);row.appendChild(nm);
+    if(!already){
+      row.addEventListener('click',function(){doReplaceWorker(orgW.id);});
+    }
+    list.appendChild(row);
+  });
+}
+function doReplaceWorker(newOrgWorkerId){
+  var oldW=D.workers.find(function(x){return x.id===_rwOldWorkerId;});
+  if(!oldW)return;
+  var org=getOrgFromGantt();
+  var orgW=(org.workers||[]).find(function(w){return w.id===newOrgWorkerId;});
+  if(!orgW)return;
+  if(D.workers.find(function(x){return idEq(x.id,orgW.id);})){toast('⚠️ העובד כבר קיים בתוכנית');return;}
+  snapshot();
+  // העובד החדש יורש את מיקום השורה הנוכחית (קבוצה/צוות) — כדי שהשורה תישאר במקומה
+  var newWorker={id:orgW.id,name:orgW.name,color:orgW.color||oldW.color,globalId:orgW.globalId,gid:oldW.gid,tid:oldW.tid};
+  D.workers.push(newWorker);
+  D.tasks.forEach(function(t){if(idEq(t.wid,oldW.id))t.wid=newWorker.id;});
+  D.workers=D.workers.filter(function(x){return x.id!==oldW.id;});
+  cm('replaceWorkerModal');
+  render();
+  toast('✓ הוחלף ל-'+newWorker.name);
+}
+window.openReplaceWorkerModal=openReplaceWorkerModal;
+window.renderReplaceWorkerList=renderReplaceWorkerList;
+window.doReplaceWorker=doReplaceWorker;
+
 function openWorkerModal(wid,tid){
   _eWid=wid||null;
   var w=wid?D.workers.find(function(x){return x.id===wid;}):null;
@@ -2103,6 +2172,9 @@ function saveWorker(){
   var globalId=document.getElementById('wm-gid').value.trim()||undefined;
   // derive gid from team if not set
   if(!gid&&tid){var t=D.teams.find(function(x){return x.id===tid;});if(t)gid=t.gid;}
+  // עובד חדש (לא מיובא מהשיבוץ) חייב קבוצה — כדי שהכל יישאר מסודר תחת קבוצות
+  // ולא ייווצרו עובדים "מנותקים" שגורמים לכפילויות.
+  if(!_eWid&&!gid){toast('⚠️ יש לבחור קבוצה עבור העובד');return;}
   var wce2=document.querySelector('#wm-colors .copt.on');
   var col=wce2&&!wce2.dataset.none?(wce2.dataset.hex||wce2.style.background):COLS[0];
   snapshot();
