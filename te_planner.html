@@ -283,7 +283,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
       <span>צוותים / עובדים</span>
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
         <button class="btn btn-sm" id="addGroupBtn">+ קבוצה</button>
-        <button class="btn btn-sm" id="toggleTeamsBtn" onclick="toggleTeamsVisible()" style="font-size:10px;">🙈 הסתר ראשי צוותים</button>
+        <button class="btn btn-sm" id="toggleTeamsBtn" onclick="toggleTeamsVisible()" style="font-size:10px;">👁 הצג ראשי צוותים</button>
       </div>
     </div>
     <div class="sidebar-body" id="sidebarBody"></div>
@@ -593,7 +593,7 @@ var D={groups:[],teams:[],workers:[],tasks:[],sprints:[],milestones:[],deps:[],n
 var ZL=100, TL_WEEKS=24, MODE_WEEKS=false;
 var TODAY=new Date(); TODAY.setHours(12,0,0,0);
 var TL_START=sundayBefore(TODAY);
-var _hideTeams=false;
+var _hideTeams=true;
 function toggleTeamsVisible(){
   _hideTeams=!_hideTeams;
   var btn=document.getElementById('toggleTeamsBtn');
