@@ -2109,8 +2109,29 @@ function doReplaceWorker(newOrgWorkerId){
   if(!orgW)return;
   if(D.workers.find(function(x){return idEq(x.id,orgW.id);})){toast('⚠️ העובד כבר קיים בתוכנית');return;}
   snapshot();
-  // העובד החדש יורש את מיקום השורה הנוכחית (קבוצה/צוות) — כדי שהשורה תישאר במקומה
-  var newWorker={id:orgW.id,name:orgW.name,color:orgW.color||oldW.color,globalId:orgW.globalId,gid:oldW.gid,tid:oldW.tid};
+  // העובד החדש משויך לקבוצה/צוות *המקוריים* שלו מהשיבוץ — לא לשורה הישנה —
+  // תוך יצירתם בתוכנית אם עוד לא קיימים בה (אותו מנגנון כמו הוספה מרשימת השיבוץ).
+  var gid=null,tid=null;
+  if(orgW.group!=null){
+    gid=orgW.group;
+    if(!D.groups.find(function(x){return x.id===gid;})){
+      var pg=(org.groups||[]).find(function(x){return x.id===gid;});
+      if(pg){var gc=JSON.parse(JSON.stringify(pg));D.groups.push(gc);if(D.nextGid<=pg.id)D.nextGid=pg.id+1;}
+    }
+  }
+  if(orgW.team!=null){
+    tid=orgW.team;
+    if(!D.teams.find(function(x){return x.id===tid;})){
+      var pt=(org.teams||[]).find(function(x){return x.id===tid;});
+      if(pt){
+        var ptCopy=JSON.parse(JSON.stringify(pt));
+        if(ptCopy.gid==null)ptCopy.gid=gid;
+        D.teams.push(ptCopy);
+        if(D.nextTmid<=pt.id)D.nextTmid=pt.id+1;
+      }
+    }
+  }
+  var newWorker={id:orgW.id,name:orgW.name,color:orgW.color||oldW.color,globalId:orgW.globalId,gid:gid,tid:tid};
   D.workers.push(newWorker);
   D.tasks.forEach(function(t){if(idEq(t.wid,oldW.id))t.wid=newWorker.id;});
   D.workers=D.workers.filter(function(x){return x.id!==oldW.id;});
@@ -2123,6 +2144,7 @@ window.renderReplaceWorkerList=renderReplaceWorkerList;
 window.doReplaceWorker=doReplaceWorker;
 
 function openWorkerModal(wid,tid){
+  if(!D.groups.length){toast('⚠️ צריך להוסיף קבוצה אחת לפחות לפני הוספת עובד');return;}
   _eWid=wid||null;
   var w=wid?D.workers.find(function(x){return x.id===wid;}):null;
   document.getElementById('wm-title').textContent=w?'ערוך עובד':'הוסף עובד';
@@ -2134,11 +2156,11 @@ function openWorkerModal(wid,tid){
   var realTid=tid&&tid>0?tid:null;
   var curTeam=w&&w.tid?D.teams.find(function(t){return t.id===w.tid;}):
               (realTid?D.teams.find(function(t){return t.id===realTid;}):null);
-  var curGid=curTeam?curTeam.gid:(passedGid||null);
-  // populate group selector
+  var curGid=curTeam?curTeam.gid:(passedGid||(w?w.gid:null));
+  // populate group selector — פשוט: רשימת הקבוצות הקיימות בתוכנית, בלי אפשרות "ללא קבוצה"
   var gSel=document.getElementById('wm-group');
-  gSel.innerHTML='<option value="">ללא קבוצה</option>'+D.groups.map(function(g){return '<option value="'+g.id+'">'+g.name+'</option>';}).join('');
-  gSel.value=curGid||'';
+  gSel.innerHTML=D.groups.map(function(g){return '<option value="'+g.id+'">'+g.name+'</option>';}).join('');
+  gSel.value=curGid||D.groups[0].id;
   // populate team selector based on group
   function refreshTeams(gid){
     var tSel=document.getElementById('wm-team');
@@ -2146,7 +2168,7 @@ function openWorkerModal(wid,tid){
     tSel.innerHTML='<option value="">ללא צוות</option>'+teams.map(function(t){return '<option value="'+t.id+'">'+t.name+'</option>';}).join('');
     tSel.value=w?(w.tid||''):(tid||'');
   }
-  refreshTeams(curGid);
+  refreshTeams(parseInt(gSel.value));
   // preselect team if passed
   if(realTid)document.getElementById('wm-team').value=realTid;
   function refreshColors(){
