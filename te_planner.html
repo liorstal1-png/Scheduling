@@ -593,6 +593,7 @@ function safeCollapsed(){if(!collapsed)collapsed={};if(!collapsed.groups)collaps
 var selectedTids=new Set();
 var _eGid=null,_eTmid=null,_eWid=null,_eTid=null,_eSid=null,_cpTarget=null,_ctxSprId=null;
 var _clipboard=null;
+var _iomPresetGid=null,_iomPresetTid=null; // קבוצה/צוות שממנו נלחץ "+ עובד", לשימוש בברירת המחדל בהוספה ידנית
 var _lastClickedTid=null;
 var _lastPasteWid=null;
 var _lastMouseX=null;
@@ -832,7 +833,7 @@ function renderSidebar(){
         lbl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();lbl.blur();}e.stopPropagation();});
         lbl.addEventListener('blur',function(){var v=lbl.textContent.trim();if(v)g.name=v;saveData();});
         addBtn.addEventListener('click',function(e){e.stopPropagation();openTeamModal(null,g.id);});
-        (function(gid){addWBtn.addEventListener('click',function(e){e.stopPropagation();openWorkerModal(null,null,gid);});})(g.id);
+        (function(gid){addWBtn.addEventListener('click',function(e){e.stopPropagation();_iomPresetGid=gid;openImportOrgModal();});})(g.id);
         // edit button
         var eBtn=document.createElement('button');eBtn.className='row-del';eBtn.textContent='✏️';eBtn.title='ערוך קבוצה';
         el.insertBefore(eBtn,del);
@@ -851,7 +852,7 @@ function renderSidebar(){
         lbl.addEventListener('click',function(e){e.stopPropagation();});
         lbl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();lbl.blur();}e.stopPropagation();});
         lbl.addEventListener('blur',function(){var v=lbl.textContent.trim();if(v)t.name=v;saveData();});
-        addWBtn.addEventListener('click',function(e){e.stopPropagation();openWorkerModal(null,t.id,t.gid);});
+        addWBtn.addEventListener('click',function(e){e.stopPropagation();_iomPresetGid=t.gid;_iomPresetTid=t.id;openImportOrgModal();});
         // edit button
         var eBtn=document.createElement('button');eBtn.className='row-del';eBtn.textContent='✏️';eBtn.title='ערוך צוות';
         el.insertBefore(eBtn,del);
@@ -2325,8 +2326,8 @@ if(_pt){var _tel=document.getElementById('plannerTitle');if(_tel)_tel.textConten
 })();
 
 // ── TOOLBAR ────────────────────────────────────────────────────────────────
-document.getElementById('addGroupBtn').onclick=function(){openImportOrgModal();};
-document.getElementById('addWorkerBtn').onclick=function(){openImportOrgModal();};
+document.getElementById('addGroupBtn').onclick=function(){_iomPresetGid=null;_iomPresetTid=null;openImportOrgModal();};
+document.getElementById('addWorkerBtn').onclick=function(){_iomPresetGid=null;_iomPresetTid=null;openImportOrgModal();};
 document.getElementById('addTaskBtn').onclick=function(){openTaskModal(null);};
 document.getElementById('addSprintBtn').onclick=function(){openSprintModal(null);};
 document.getElementById('rangeBtn').onclick=function(){document.getElementById('range-s').value=fd(TL_START);document.getElementById('range-w').value=TL_WEEKS;om('rangemodal');};
@@ -3432,7 +3433,7 @@ function openImportOrgModal(){
   var newWBtn=document.createElement('button');
   newWBtn.className='btn';newWBtn.style.cssText='width:100%;margin-top:8px;';
   newWBtn.textContent='+ הוסף עובד חדש לתוכנית בלבד';
-  newWBtn.onclick=function(){cm('importOrgModal');openWorkerModal(null,null);};
+  newWBtn.onclick=function(){var pg=_iomPresetGid,pt=_iomPresetTid;cm('importOrgModal');openWorkerModal(null,pt||null,pg);};
   body.appendChild(newWBtn);
   om('importOrgModal');
 }
