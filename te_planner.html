@@ -453,6 +453,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <div class="ci" id="reportsMenu-summary">📊 סיכום</div>
   <div class="ci" id="reportsMenu-tasksTable">📋 פירוט משימות</div>
   <div class="ci" id="reportsMenu-sprintReq">🏁 דרישות ספרינט</div>
+  <div class="ci-sep"></div>
+  <div class="ci" id="reportsMenu-integrity">🔍 בדוק תקינות נתונים</div>
 </div>
 <div class="ctx" id="exportImportMenu">
   <div class="ci" id="eiMenu-exportCsv">📥 ייצוא CSV</div>
@@ -487,6 +489,17 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
       <button class="mx" onclick="document.getElementById('sprintReqModal').classList.remove('open')">✕</button>
     </div>
     <div class="mbody" id="sprintReqBody" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Data integrity modal -->
+<div class="ov" id="integrityModal" onclick="if(event.target===this)document.getElementById('integrityModal').classList.remove('open')">
+  <div class="modal" style="max-width:480px;">
+    <div class="mhdr">
+      <span class="mtitle">🔍 בדיקת תקינות נתונים</span>
+      <button class="mx" onclick="document.getElementById('integrityModal').classList.remove('open')">✕</button>
+    </div>
+    <div class="mbody" id="integrityBody" style="max-height:60vh;overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -1734,6 +1747,67 @@ function openSprintReqModal(){
 }
 window.openSprintReqModal=openSprintReqModal;
 document.getElementById('reportsMenu-sprintReq').addEventListener('click',function(){closeCtx();openSprintReqModal();});
+document.getElementById('reportsMenu-integrity').addEventListener('click',function(){closeCtx();openIntegrityModal();});
+
+// ── בדיקת תקינות נתונים — מוצא עובדים/משימות עם שיוך שבור (gid/tid/wid שלא
+// תואמים שום קבוצה/צוות/עובד קיים), כדי לאתר במהירות "עובדים רפאים" שנעלמים
+// מהתצוגה בגלל נתונים ישנים/פגומים.
+function openIntegrityModal(){
+  var body=document.getElementById('integrityBody');
+  var html='';
+  var groupIds={};D.groups.forEach(function(g){groupIds[String(g.id)]=true;});
+  var teamIds={};D.teams.forEach(function(t){teamIds[String(t.id)]=true;});
+  var workerIds={};D.workers.forEach(function(w){workerIds[String(w.id)]=true;});
+
+  var brokenWorkers=D.workers.filter(function(w){
+    var badGid=w.gid!=null&&!groupIds[String(w.gid)];
+    var badTid=w.tid!=null&&!teamIds[String(w.tid)];
+    return badGid||badTid;
+  });
+  var orphanTeams=D.teams.filter(function(t){return t.gid!=null&&!groupIds[String(t.gid)];});
+  var orphanTasks=D.tasks.filter(function(t){return !workerIds[String(t.wid)];});
+
+  if(!brokenWorkers.length&&!orphanTeams.length&&!orphanTasks.length){
+    html='<div style="color:#1D9E75;font-weight:600;padding:8px;">✓ לא נמצאו בעיות — כל העובדים, הצוותים והמשימות משויכים כראוי.</div>';
+  }else{
+    if(brokenWorkers.length){
+      html+='<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#B71C1C;">⚠️ עובדים עם שיוך קבוצה/צוות שבור ('+brokenWorkers.length+')</div>';
+      brokenWorkers.forEach(function(w){
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:#FFEBEE;border-radius:6px;margin-bottom:4px;font-size:12px;">';
+        html+='<span>'+w.name+' <span style="color:var(--mut);">(gid='+(w.gid==null?'—':w.gid)+', tid='+(w.tid==null?'—':w.tid)+')</span></span>';
+        html+='<button class="btn btn-sm" data-fix-wid="'+w.id+'">תקן</button>';
+        html+='</div>';
+      });
+      html+='</div>';
+    }
+    if(orphanTeams.length){
+      html+='<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#B71C1C;">⚠️ צוותים ששייכים לקבוצה שלא קיימת ('+orphanTeams.length+')</div>';
+      orphanTeams.forEach(function(t){
+        html+='<div style="padding:6px 8px;background:#FFEBEE;border-radius:6px;margin-bottom:4px;font-size:12px;">'+t.name+' <span style="color:var(--mut);">(gid='+t.gid+')</span></div>';
+      });
+      html+='</div>';
+    }
+    if(orphanTasks.length){
+      html+='<div style="margin-bottom:12px;"><div style="font-weight:700;font-size:12px;margin-bottom:6px;color:#B71C1C;">⚠️ משימות ששייכות לעובד שלא קיים ('+orphanTasks.length+')</div>';
+      orphanTasks.forEach(function(t){
+        html+='<div style="padding:6px 8px;background:#FFEBEE;border-radius:6px;margin-bottom:4px;font-size:12px;">'+t.name+' <span style="color:var(--mut);">(wid='+t.wid+')</span></div>';
+      });
+      html+='</div>';
+    }
+  }
+  body.innerHTML=html;
+  body.querySelectorAll('[data-fix-wid]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var wid=btn.getAttribute('data-fix-wid');
+      var w=D.workers.find(function(x){return String(x.id)===wid;});
+      if(!w)return;
+      document.getElementById('integrityModal').classList.remove('open');
+      openWorkerModal(w.id,null);
+    });
+  });
+  document.getElementById('integrityModal').classList.add('open');
+}
+window.openIntegrityModal=openIntegrityModal;
 document.getElementById('sprintCutBtn').addEventListener('click',function(){
   SPRINT_CUT_MODE=!SPRINT_CUT_MODE;
   this.textContent=SPRINT_CUT_MODE?'📊 תצוגה רגילה':'📋 חתך ספרינטים';
