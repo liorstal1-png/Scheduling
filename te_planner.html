@@ -460,6 +460,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <div class="ci-sep"></div>
   <div class="ci" id="eiMenu-template">📄 הורד תבנית ייבוא</div>
   <div class="ci" id="eiMenu-import">📤 ייבוא מאקסל</div>
+  <div class="ci-sep"></div>
+  <div class="ci" id="eiMenu-syncGroups">🔗 סנכרן קבוצות עם השיבוץ</div>
 </div>
 <div class="cpop" id="cpop"></div>
 <div class="lasso" id="lasso" style="display:none"></div>
@@ -2168,19 +2170,24 @@ function openWorkerModal(wid,tid){
     tSel.innerHTML='<option value="">ללא צוות</option>'+teams.map(function(t){return '<option value="'+t.id+'">'+t.name+'</option>';}).join('');
     tSel.value=w?(w.tid||''):(tid||'');
   }
-  refreshTeams(parseInt(gSel.value));
+  function resolveSelectedGid(){
+    var raw=gSel.value;
+    var g=D.groups.find(function(x){return String(x.id)===raw;});
+    return g?g.id:null;
+  }
+  refreshTeams(resolveSelectedGid());
   // preselect team if passed
   if(realTid)document.getElementById('wm-team').value=realTid;
   function refreshColors(){
-    var gid=parseInt(gSel.value)||null;
-    var grp=gid?D.groups.find(function(g){return +g.id===gid;}):null;
+    var gid=resolveSelectedGid();
+    var grp=gid!=null?D.groups.find(function(g){return g.id===gid;}):null;
     var grpCol=grp&&grp.color?grp.color:(w&&w.color?w.color:null);
     buildColors('wm-colors',w?w.color:null,true,grpCol);
   }
   // call after DOM is settled
   setTimeout(refreshColors,0);
   gSel.onchange=function(){
-    var gid=parseInt(gSel.value)||null;
+    var gid=resolveSelectedGid();
     refreshTeams(gid);
     refreshColors();
   };
@@ -2189,8 +2196,12 @@ function openWorkerModal(wid,tid){
 }
 function saveWorker(){
   var name=document.getElementById('wm-name').value.trim();if(!name)return;
-  var gid=parseInt(document.getElementById('wm-group').value)||null;
-  var tid=parseInt(document.getElementById('wm-team').value)||null;
+  var gidRaw=document.getElementById('wm-group').value;
+  var tidRaw=document.getElementById('wm-team').value;
+  var gMatch=D.groups.find(function(g){return String(g.id)===gidRaw;});
+  var tMatch=D.teams.find(function(t){return String(t.id)===tidRaw;});
+  var gid=gMatch?gMatch.id:null;
+  var tid=tMatch?tMatch.id:null;
   var globalId=document.getElementById('wm-gid').value.trim()||undefined;
   // derive gid from team if not set
   if(!gid&&tid){var t=D.teams.find(function(x){return x.id===tid;});if(t)gid=t.gid;}
@@ -2900,6 +2911,45 @@ function applyImport(mode){
 
 document.getElementById('eiMenu-template').addEventListener('click',function(){closeCtx();downloadImportTemplate();});
 document.getElementById('eiMenu-import').addEventListener('click',function(){closeCtx();document.getElementById('importXlsxInput').click();});
+document.getElementById('eiMenu-syncGroups').addEventListener('click',function(){closeCtx();syncGroupsWithScheduling();});
+
+// ── סנכרון קבוצות מקומיות (שנוצרו ידנית עם שם בלבד) מול קבוצות אמיתיות
+// מהשיבוץ, לפי התאמת שם — כדי שקבוצה כמו "תוכנה" שנכתבה ידנית בתוכנית תזוהה
+// כאותה "תוכנה" שכבר קיימת במאגר, והעובדים/צוותים שתחתיה ישויכו אליה.
+async function syncGroupsWithScheduling(){
+  toast('בודק התאמות...');
+  await loadGanttData();
+  var org=getOrgFromGantt();
+  if(!org.groups||!org.groups.length){toast('⚠️ אין נתוני שיבוץ זמינים — ודא שיש חיבור לענן');return;}
+  function norm(s){return (s||'').trim().toLowerCase();}
+  var matched=[];
+  D.groups.forEach(function(localG){
+    // אם ה-ID כבר תואם קבוצה אמיתית מהשיבוץ — אין מה לסנכרן, זה כבר מקושר
+    if(org.groups.find(function(og){return og.id===localG.id;}))return;
+    var match=org.groups.find(function(og){return norm(og.name)===norm(localG.name);});
+    if(match)matched.push({local:localG,org:match});
+  });
+  if(!matched.length){toast('✓ כל הקבוצות כבר מסונכרנות עם השיבוץ');return;}
+  var msg='נמצאו '+matched.length+' קבוצות מקומיות שתואמות בשם לקבוצות מהשיבוץ:\n'
+    +matched.map(function(m){return '"'+m.local.name+'" ← ישויך לקבוצת השיבוץ האמיתית';}).join('\n')
+    +'\n\nכל העובדים/הצוותים תחתן ישויכו לקבוצה האמיתית מהשיבוץ. לא ניתן לבטל אוטומטית (אבל ניתן Ctrl+Z). להמשיך?';
+  if(!confirm(msg))return;
+  snapshot();
+  matched.forEach(function(m){
+    var oldId=m.local.id, newId=m.org.id;
+    if(!D.groups.find(function(g){return g.id===newId;})){
+      var gc=JSON.parse(JSON.stringify(m.org));
+      gc.color=m.local.color||gc.color;
+      D.groups.push(gc);
+    }
+    D.workers.forEach(function(w){if(w.gid===oldId)w.gid=newId;});
+    D.teams.forEach(function(t){if(t.gid===oldId)t.gid=newId;});
+    D.groups=D.groups.filter(function(g){return g.id!==oldId;});
+  });
+  render();
+  toast('✓ '+matched.length+' קבוצות סונכרנו עם השיבוץ');
+}
+window.syncGroupsWithScheduling=syncGroupsWithScheduling;
 document.getElementById('importXlsxInput').addEventListener('change',function(e){
   var f=e.target.files&&e.target.files[0];
   handleImportFile(f);
