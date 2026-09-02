@@ -942,13 +942,14 @@ function startWorkerRowReorder(e,workerId,rowEl){
     if(!lastTargetId)return;
     var targetW=D.workers.find(function(w){return String(w.id)===lastTargetId;});
     if(!targetW||targetW.id===dragged.id)return;
-    // אפשר להחליף מיקום רק בתוך אותה קבוצה/צוות — כדי לא לשייך בטעות עובד
-    // לקבוצה אחרת (לזה יש כפתור עריכה נפרד)
-    if(String(targetW.gid)!==String(dragged.gid)||String(targetW.tid)!==String(dragged.tid)){
-      toast('⚠️ אפשר לשנות סדר רק בין עובדים באותה קבוצה/צוות');
+    // אפשר להחליף מיקום בתוך אותה קבוצה (לא חייב להיות אותו צוות בדיוק) —
+    // אם גוררים לצוות אחר בתוך הקבוצה, העובד גם ישויך לצוות החדש בהתאם.
+    if(String(targetW.gid)!==String(dragged.gid)){
+      toast('⚠️ אפשר לשנות סדר רק בתוך אותה קבוצה');
       return;
     }
     snapshot();
+    if(String(targetW.tid)!==String(dragged.tid))dragged.tid=targetW.tid;
     D.workers=D.workers.filter(function(w){return w.id!==dragged.id;});
     var idx=D.workers.findIndex(function(w){return w.id===targetW.id;});
     D.workers.splice(lastBefore?idx:idx+1,0,dragged);
@@ -2584,7 +2585,7 @@ document.getElementById('modeBtn').onclick=function(){MODE_WEEKS=!MODE_WEEKS;thi
     if(!e.ctrlKey)return; // רק קריצה/Ctrl+גלגלת — גלילה רגילה נשארת רגילה
     e.preventDefault();
     var delta=-e.deltaY;
-    ZL=Math.max(25,Math.min(300,ZL+(delta>0?10:-10)));
+    ZL=Math.max(25,Math.min(300,ZL+(delta>0?3:-3)));
     document.getElementById('zlbl').textContent=ZL+'%';
     var _pt=sessionStorage.getItem('te_active_pname');
     if(_pt){var _tel=document.getElementById('plannerTitle');if(_tel)_tel.textContent='📋 '+_pt;}
