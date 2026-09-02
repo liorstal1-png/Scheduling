@@ -42,8 +42,8 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .tree-team-hdr{height:30px;min-height:30px;display:flex;align-items:center;padding:0 6px 0 16px;gap:4px;border-bottom:1px solid var(--brd);background:#F0EEE8;cursor:pointer;user-select:none;flex-shrink:0;}
 .tree-team-hdr:hover{background:#eae8e2;}
 .tree-worker-row{height:40px;min-height:40px;display:flex;align-items:center;padding:0 6px 0 26px;gap:5px;border-bottom:1px solid var(--brd);flex-shrink:0;position:relative;background:#fff;}
-.row-grip{cursor:grab;color:var(--fnt);font-size:12px;flex-shrink:0;opacity:0;transition:opacity .1s;padding:0 2px;}
-.tree-worker-row:hover .row-grip{opacity:1;}
+.row-grip{cursor:grab;color:var(--fnt);font-size:15px;flex-shrink:0;opacity:0;transition:opacity .1s;padding:0 5px;}
+.tree-worker-row:hover .row-grip,.tree-group-hdr:hover .row-grip,.tree-team-hdr:hover .row-grip{opacity:1;}
 .row-grip:active{cursor:grabbing;}
 .tree-worker-row:hover{background:#f8f8f6;}
 .tree-toggle{font-size:8px;color:var(--fnt);width:10px;flex-shrink:0;}
@@ -908,15 +908,16 @@ function renderSidebar(){
 // ── שינוי סדר שורות עובדים (גרירה) — מזיז את כל השורה (עובד + משימות + תלויות,
 // כי הן תמיד צמודות לעובד לפי wid) למיקום חדש בתוך אותה קבוצה/צוות בלבד.
 function startWorkerRowReorder(e,workerId,rowEl){
-  var startY=e.clientY;
-  var placeholder=document.createElement('div');
-  placeholder.style.cssText='height:2px;background:var(--acc);margin:0;';
   var dragged=D.workers.find(function(w){return w.id===workerId;});
   if(!dragged)return;
   rowEl.style.opacity='.4';
-  var lastTarget=null,lastBefore=false;
+  var lastTargetId=null,lastBefore=false;
   function onMove(ev){
-    var rows=Array.from(document.querySelectorAll('.tree-worker-row')).filter(function(r){return r!==rowEl;});
+    if(!document.contains(rowEl)){
+      var fresh=document.querySelector('.tree-worker-row[data-wid="'+workerId+'"]');
+      if(fresh){rowEl=fresh;rowEl.style.opacity='.4';}
+    }
+    var rows=Array.from(document.querySelectorAll('.tree-worker-row')).filter(function(r){return r.dataset.wid!==String(workerId);});
     var found=null,before=false;
     for(var i=0;i<rows.length;i++){
       var r=rows[i].getBoundingClientRect();
@@ -931,16 +932,15 @@ function startWorkerRowReorder(e,workerId,rowEl){
       if(before)found.style.borderTop='2px solid var(--acc)';
       else found.style.borderBottom='2px solid var(--acc)';
     }
-    lastTarget=found;lastBefore=before;
+    lastTargetId=found?found.dataset.wid:null;lastBefore=before;
   }
   function onUp(){
     document.removeEventListener('mousemove',onMove);
     document.removeEventListener('mouseup',onUp);
-    rowEl.style.opacity='';
+    if(document.contains(rowEl))rowEl.style.opacity='';
     document.querySelectorAll('.tree-worker-row').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
-    if(!lastTarget)return;
-    var targetId=lastTarget.dataset.wid;
-    var targetW=D.workers.find(function(w){return String(w.id)===targetId;});
+    if(!lastTargetId)return;
+    var targetW=D.workers.find(function(w){return String(w.id)===lastTargetId;});
     if(!targetW||targetW.id===dragged.id)return;
     // אפשר להחליף מיקום רק בתוך אותה קבוצה/צוות — כדי לא לשייך בטעות עובד
     // לקבוצה אחרת (לזה יש כפתור עריכה נפרד)
@@ -965,9 +965,15 @@ function startGroupReorder(e,groupId,rowEl){
   var dragged=D.groups.find(function(g){return g.id===groupId;});
   if(!dragged)return;
   rowEl.style.opacity='.4';
-  var lastTarget=null,lastBefore=false;
+  var lastTargetId=null,lastBefore=false;
   function onMove(ev){
-    var rows=Array.from(document.querySelectorAll('.tree-group-hdr')).filter(function(r){return r!==rowEl;});
+    // אם התוכן נבנה מחדש (למשל בגלל סנכרון ברקע) תוך כדי הגרירה, ה-DOM הישן
+    // נעלם — נאתר מחדש את השורה הנגררת לפי מזהה הקבוצה, לא לפי הפניה ישנה.
+    if(!document.contains(rowEl)){
+      var fresh=document.querySelector('.tree-group-hdr[data-gid="'+groupId+'"]');
+      if(fresh){rowEl=fresh;rowEl.style.opacity='.4';}
+    }
+    var rows=Array.from(document.querySelectorAll('.tree-group-hdr')).filter(function(r){return r.dataset.gid!==String(groupId);});
     var found=null,before=false;
     for(var i=0;i<rows.length;i++){
       var r=rows[i].getBoundingClientRect();
@@ -975,16 +981,15 @@ function startGroupReorder(e,groupId,rowEl){
     }
     document.querySelectorAll('.tree-group-hdr').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
     if(found){if(before)found.style.borderTop='2px solid var(--acc)';else found.style.borderBottom='2px solid var(--acc)';}
-    lastTarget=found;lastBefore=before;
+    lastTargetId=found?found.dataset.gid:null;lastBefore=before;
   }
   function onUp(){
     document.removeEventListener('mousemove',onMove);
     document.removeEventListener('mouseup',onUp);
-    rowEl.style.opacity='';
+    if(document.contains(rowEl))rowEl.style.opacity='';
     document.querySelectorAll('.tree-group-hdr').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
-    if(!lastTarget)return;
-    var targetId=lastTarget.dataset.gid;
-    var targetG=D.groups.find(function(g){return String(g.id)===targetId;});
+    if(!lastTargetId)return;
+    var targetG=D.groups.find(function(g){return String(g.id)===lastTargetId;});
     if(!targetG||targetG.id===dragged.id)return;
     snapshot();
     D.groups=D.groups.filter(function(g){return g.id!==dragged.id;});
@@ -1001,9 +1006,13 @@ function startTeamReorder(e,teamId,rowEl){
   var dragged=D.teams.find(function(t){return t.id===teamId;});
   if(!dragged)return;
   rowEl.style.opacity='.4';
-  var lastTarget=null,lastBefore=false;
+  var lastTargetId=null,lastBefore=false;
   function onMove(ev){
-    var rows=Array.from(document.querySelectorAll('.tree-team-hdr')).filter(function(r){return r!==rowEl;});
+    if(!document.contains(rowEl)){
+      var fresh=document.querySelector('.tree-team-hdr[data-tid="'+teamId+'"]');
+      if(fresh){rowEl=fresh;rowEl.style.opacity='.4';}
+    }
+    var rows=Array.from(document.querySelectorAll('.tree-team-hdr')).filter(function(r){return r.dataset.tid!==String(teamId);});
     var found=null,before=false;
     for(var i=0;i<rows.length;i++){
       var r=rows[i].getBoundingClientRect();
@@ -1011,16 +1020,15 @@ function startTeamReorder(e,teamId,rowEl){
     }
     document.querySelectorAll('.tree-team-hdr').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
     if(found){if(before)found.style.borderTop='2px solid var(--acc)';else found.style.borderBottom='2px solid var(--acc)';}
-    lastTarget=found;lastBefore=before;
+    lastTargetId=found?found.dataset.tid:null;lastBefore=before;
   }
   function onUp(){
     document.removeEventListener('mousemove',onMove);
     document.removeEventListener('mouseup',onUp);
-    rowEl.style.opacity='';
+    if(document.contains(rowEl))rowEl.style.opacity='';
     document.querySelectorAll('.tree-team-hdr').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
-    if(!lastTarget)return;
-    var targetId=lastTarget.dataset.tid;
-    var targetT=D.teams.find(function(t){return String(t.id)===targetId;});
+    if(!lastTargetId)return;
+    var targetT=D.teams.find(function(t){return String(t.id)===lastTargetId;});
     if(!targetT||targetT.id===dragged.id)return;
     if(String(targetT.gid)!==String(dragged.gid)){
       toast('⚠️ אפשר לשנות סדר רק בין צוותים באותה קבוצה');
