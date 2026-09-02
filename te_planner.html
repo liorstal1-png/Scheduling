@@ -42,6 +42,9 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .tree-team-hdr{height:30px;min-height:30px;display:flex;align-items:center;padding:0 6px 0 16px;gap:4px;border-bottom:1px solid var(--brd);background:#F0EEE8;cursor:pointer;user-select:none;flex-shrink:0;}
 .tree-team-hdr:hover{background:#eae8e2;}
 .tree-worker-row{height:40px;min-height:40px;display:flex;align-items:center;padding:0 6px 0 26px;gap:5px;border-bottom:1px solid var(--brd);flex-shrink:0;position:relative;background:#fff;}
+.row-grip{cursor:grab;color:var(--fnt);font-size:12px;flex-shrink:0;opacity:0;transition:opacity .1s;padding:0 2px;}
+.tree-worker-row:hover .row-grip{opacity:1;}
+.row-grip:active{cursor:grabbing;}
 .tree-worker-row:hover{background:#f8f8f6;}
 .tree-toggle{font-size:8px;color:var(--fnt);width:10px;flex-shrink:0;}
 .tree-label{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;outline:none;}
@@ -834,13 +837,15 @@ function renderSidebar(){
     var el=document.createElement('div');
     if(row.type==='group'){
       el.className='tree-group-hdr';
+      el.dataset.gid=row.obj.id;
       if(row.obj.color)el.style.background=row.obj.color+'22'; // light tint
+      var ggrip=document.createElement('div');ggrip.className='row-grip';ggrip.textContent='⠿';ggrip.title='גרור כדי לשנות סדר קבוצות';
       var tog=document.createElement('span');tog.className='tree-toggle';tog.textContent=collapsed.groups[row.obj.id]?'▶':'▼';
       var lbl=document.createElement('span');lbl.className='tree-label group-lbl';lbl.contentEditable='true';lbl.spellcheck=false;lbl.textContent=row.obj.name;
       var addBtn=document.createElement('button');addBtn.className='btn btn-sm';addBtn.style.cssText='padding:1px 7px;font-size:11px;font-weight:400;line-height:1;margin-right:auto;color:var(--mut);background:transparent;border:none;';addBtn.textContent='+ צוות';
       var addWBtn=document.createElement('button');addWBtn.style.cssText='padding:1px 6px;font-size:11px;background:transparent;border:none;cursor:pointer;color:var(--mut);line-height:1;';addWBtn.textContent='+ עובד';
       var del=document.createElement('button');del.className='row-del';del.textContent='×';
-      el.appendChild(tog);el.appendChild(lbl);el.appendChild(addWBtn);el.appendChild(addBtn);el.appendChild(del);
+      el.appendChild(ggrip);el.appendChild(tog);el.appendChild(lbl);el.appendChild(addWBtn);el.appendChild(addBtn);el.appendChild(del);
       (function(g){
         lbl.addEventListener('click',function(e){e.stopPropagation();});
         lbl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();lbl.blur();}e.stopPropagation();});
@@ -852,15 +857,18 @@ function renderSidebar(){
         el.insertBefore(eBtn,del);
         eBtn.addEventListener('click',function(e){e.stopPropagation();openGroupModal(g.id);});
         del.addEventListener('click',function(e){e.stopPropagation();if(!confirm('למחוק קבוצה?'))return;snapshot();D.groups=D.groups.filter(function(x){return x.id!==g.id;});D.teams.filter(function(t){return t.gid===g.id;}).forEach(function(t){D.workers.filter(function(w){return w.tid===t.id;}).forEach(function(w){w.tid=null;});});D.teams=D.teams.filter(function(t){return t.gid!==g.id;});render();});
-        el.addEventListener('click',function(e){if(e.target===addBtn||e.target===del||e.target===lbl)return;collapsed.groups[g.id]=!collapsed.groups[g.id];render();});
+        el.addEventListener('click',function(e){if(e.target===addBtn||e.target===del||e.target===lbl||e.target===ggrip)return;collapsed.groups[g.id]=!collapsed.groups[g.id];render();});
+        ggrip.addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault();startGroupReorder(e,g.id,el);});
       })(row.obj);
     } else if(row.type==='team'){
       el.className='tree-team-hdr';
+      el.dataset.tid=row.obj.id;
+      var tgrip=document.createElement('div');tgrip.className='row-grip';tgrip.textContent='⠿';tgrip.title='גרור כדי לשנות סדר צוותים';
       var tog=document.createElement('span');tog.className='tree-toggle';tog.textContent=collapsed.teams[row.obj.id]?'▶':'▼';
       var lbl=document.createElement('span');lbl.className='tree-label team-lbl';lbl.contentEditable='true';lbl.spellcheck=false;lbl.textContent=row.obj.name;
       var addWBtn=document.createElement('button');addWBtn.style.cssText='padding:1px 6px;font-size:11px;background:transparent;border:none;cursor:pointer;color:var(--mut);line-height:1;margin-right:auto;';addWBtn.textContent='+ עובד';
       var del=document.createElement('button');del.className='row-del';del.textContent='×';
-      el.appendChild(tog);el.appendChild(lbl);el.appendChild(addWBtn);el.appendChild(del);
+      el.appendChild(tgrip);el.appendChild(tog);el.appendChild(lbl);el.appendChild(addWBtn);el.appendChild(del);
       (function(t){
         lbl.addEventListener('click',function(e){e.stopPropagation();});
         lbl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();lbl.blur();}e.stopPropagation();});
@@ -871,26 +879,161 @@ function renderSidebar(){
         el.insertBefore(eBtn,del);
         eBtn.addEventListener('click',function(e){e.stopPropagation();openTeamModal(t.id,null);});
         del.addEventListener('click',function(e){e.stopPropagation();if(!confirm('למחוק צוות?'))return;snapshot();D.workers.filter(function(w){return w.tid===t.id;}).forEach(function(w){w.tid=null;});D.teams=D.teams.filter(function(x){return x.id!==t.id;});render();});
-        el.addEventListener('click',function(e){if(e.target===addBtn||e.target===del||e.target===lbl)return;collapsed.teams[t.id]=!collapsed.teams[t.id];render();});
+        el.addEventListener('click',function(e){if(e.target===addWBtn||e.target===del||e.target===lbl||e.target===tgrip)return;collapsed.teams[t.id]=!collapsed.teams[t.id];render();});
+        tgrip.addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault();startTeamReorder(e,t.id,el);});
       })(row.obj);
     } else {
       el.className='tree-worker-row';
+      el.dataset.wid=row.obj.id;
+      var grip=document.createElement('div');grip.className='row-grip';grip.textContent='⠿';grip.title='גרור כדי לשנות סדר';
       var dot=document.createElement('div');dot.className='wdot';dot.style.background=row.obj.color;
       var nm=document.createElement('span');nm.className='wname-edit';nm.contentEditable='true';nm.spellcheck=false;nm.textContent=row.obj.name;
       var rBtn=document.createElement('button');rBtn.className='row-del';rBtn.textContent='🔄';rBtn.title='החלף עובד בשורה זו';
       var eBtn=document.createElement('button');eBtn.className='row-del';eBtn.textContent='✏️';eBtn.title='ערוך עובד';
       var del=document.createElement('button');del.className='row-del';del.textContent='×';
-      el.appendChild(dot);el.appendChild(nm);el.appendChild(rBtn);el.appendChild(eBtn);el.appendChild(del);
+      el.appendChild(grip);el.appendChild(dot);el.appendChild(nm);el.appendChild(rBtn);el.appendChild(eBtn);el.appendChild(del);
       (function(w){
         dot.addEventListener('click',function(e){e.stopPropagation();openCP(e,{type:'worker',wid:w.id});});
         nm.addEventListener('blur',function(){w.name=nm.textContent.trim()||w.name;saveData();});
         rBtn.addEventListener('click',function(e){e.stopPropagation();openReplaceWorkerModal(w.id);});
         eBtn.addEventListener('click',function(e){e.stopPropagation();openWorkerModal(w.id,w.tid);});
         del.addEventListener('click',function(e){e.stopPropagation();if(!confirm('למחוק עובד?'))return;snapshot();D.workers=D.workers.filter(function(x){return x.id!==w.id;});D.tasks=D.tasks.filter(function(x){return x.wid!==w.id;});render();});
+        grip.addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault();startWorkerRowReorder(e,w.id,el);});
       })(row.obj);
     }
     sb.appendChild(el);
   });
+}
+
+// ── שינוי סדר שורות עובדים (גרירה) — מזיז את כל השורה (עובד + משימות + תלויות,
+// כי הן תמיד צמודות לעובד לפי wid) למיקום חדש בתוך אותה קבוצה/צוות בלבד.
+function startWorkerRowReorder(e,workerId,rowEl){
+  var startY=e.clientY;
+  var placeholder=document.createElement('div');
+  placeholder.style.cssText='height:2px;background:var(--acc);margin:0;';
+  var dragged=D.workers.find(function(w){return w.id===workerId;});
+  if(!dragged)return;
+  rowEl.style.opacity='.4';
+  var lastTarget=null,lastBefore=false;
+  function onMove(ev){
+    var rows=Array.from(document.querySelectorAll('.tree-worker-row')).filter(function(r){return r!==rowEl;});
+    var found=null,before=false;
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i].getBoundingClientRect();
+      if(ev.clientY>=r.top&&ev.clientY<=r.bottom){
+        found=rows[i];
+        before=(ev.clientY<r.top+r.height/2);
+        break;
+      }
+    }
+    document.querySelectorAll('.tree-worker-row').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
+    if(found){
+      if(before)found.style.borderTop='2px solid var(--acc)';
+      else found.style.borderBottom='2px solid var(--acc)';
+    }
+    lastTarget=found;lastBefore=before;
+  }
+  function onUp(){
+    document.removeEventListener('mousemove',onMove);
+    document.removeEventListener('mouseup',onUp);
+    rowEl.style.opacity='';
+    document.querySelectorAll('.tree-worker-row').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
+    if(!lastTarget)return;
+    var targetId=lastTarget.dataset.wid;
+    var targetW=D.workers.find(function(w){return String(w.id)===targetId;});
+    if(!targetW||targetW.id===dragged.id)return;
+    // אפשר להחליף מיקום רק בתוך אותה קבוצה/צוות — כדי לא לשייך בטעות עובד
+    // לקבוצה אחרת (לזה יש כפתור עריכה נפרד)
+    if(String(targetW.gid)!==String(dragged.gid)||String(targetW.tid)!==String(dragged.tid)){
+      toast('⚠️ אפשר לשנות סדר רק בין עובדים באותה קבוצה/צוות');
+      return;
+    }
+    snapshot();
+    D.workers=D.workers.filter(function(w){return w.id!==dragged.id;});
+    var idx=D.workers.findIndex(function(w){return w.id===targetW.id;});
+    D.workers.splice(lastBefore?idx:idx+1,0,dragged);
+    render();
+  }
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
+}
+
+// ── שינוי סדר קבוצות שלמות (גרירה) — מחליף מיקום בין קבוצות, כולל כל
+// הצוותים/העובדים/המשימות/התלויות שתחתן (הן תמיד "צמודות" לפי gid, לא לפי
+// מיקום השורה).
+function startGroupReorder(e,groupId,rowEl){
+  var dragged=D.groups.find(function(g){return g.id===groupId;});
+  if(!dragged)return;
+  rowEl.style.opacity='.4';
+  var lastTarget=null,lastBefore=false;
+  function onMove(ev){
+    var rows=Array.from(document.querySelectorAll('.tree-group-hdr')).filter(function(r){return r!==rowEl;});
+    var found=null,before=false;
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i].getBoundingClientRect();
+      if(ev.clientY>=r.top&&ev.clientY<=r.bottom){found=rows[i];before=(ev.clientY<r.top+r.height/2);break;}
+    }
+    document.querySelectorAll('.tree-group-hdr').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
+    if(found){if(before)found.style.borderTop='2px solid var(--acc)';else found.style.borderBottom='2px solid var(--acc)';}
+    lastTarget=found;lastBefore=before;
+  }
+  function onUp(){
+    document.removeEventListener('mousemove',onMove);
+    document.removeEventListener('mouseup',onUp);
+    rowEl.style.opacity='';
+    document.querySelectorAll('.tree-group-hdr').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
+    if(!lastTarget)return;
+    var targetId=lastTarget.dataset.gid;
+    var targetG=D.groups.find(function(g){return String(g.id)===targetId;});
+    if(!targetG||targetG.id===dragged.id)return;
+    snapshot();
+    D.groups=D.groups.filter(function(g){return g.id!==dragged.id;});
+    var idx=D.groups.findIndex(function(g){return g.id===targetG.id;});
+    D.groups.splice(lastBefore?idx:idx+1,0,dragged);
+    render();
+  }
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
+}
+
+// ── שינוי סדר צוותים (גרירה) — בתוך אותה קבוצה בלבד
+function startTeamReorder(e,teamId,rowEl){
+  var dragged=D.teams.find(function(t){return t.id===teamId;});
+  if(!dragged)return;
+  rowEl.style.opacity='.4';
+  var lastTarget=null,lastBefore=false;
+  function onMove(ev){
+    var rows=Array.from(document.querySelectorAll('.tree-team-hdr')).filter(function(r){return r!==rowEl;});
+    var found=null,before=false;
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i].getBoundingClientRect();
+      if(ev.clientY>=r.top&&ev.clientY<=r.bottom){found=rows[i];before=(ev.clientY<r.top+r.height/2);break;}
+    }
+    document.querySelectorAll('.tree-team-hdr').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
+    if(found){if(before)found.style.borderTop='2px solid var(--acc)';else found.style.borderBottom='2px solid var(--acc)';}
+    lastTarget=found;lastBefore=before;
+  }
+  function onUp(){
+    document.removeEventListener('mousemove',onMove);
+    document.removeEventListener('mouseup',onUp);
+    rowEl.style.opacity='';
+    document.querySelectorAll('.tree-team-hdr').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
+    if(!lastTarget)return;
+    var targetId=lastTarget.dataset.tid;
+    var targetT=D.teams.find(function(t){return String(t.id)===targetId;});
+    if(!targetT||targetT.id===dragged.id)return;
+    if(String(targetT.gid)!==String(dragged.gid)){
+      toast('⚠️ אפשר לשנות סדר רק בין צוותים באותה קבוצה');
+      return;
+    }
+    snapshot();
+    D.teams=D.teams.filter(function(t){return t.id!==dragged.id;});
+    var idx=D.teams.findIndex(function(t){return t.id===targetT.id;});
+    D.teams.splice(lastBefore?idx:idx+1,0,dragged);
+    render();
+  }
+  document.addEventListener('mousemove',onMove);
+  document.addEventListener('mouseup',onUp);
 }
 
 // ── SPRINT HELPERS ─────────────────────────────────────────────────────────
