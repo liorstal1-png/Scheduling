@@ -858,7 +858,7 @@ function renderSidebar(){
         eBtn.addEventListener('click',function(e){e.stopPropagation();openGroupModal(g.id);});
         del.addEventListener('click',function(e){e.stopPropagation();if(!confirm('למחוק קבוצה?'))return;snapshot();D.groups=D.groups.filter(function(x){return x.id!==g.id;});D.teams.filter(function(t){return t.gid===g.id;}).forEach(function(t){D.workers.filter(function(w){return w.tid===t.id;}).forEach(function(w){w.tid=null;});});D.teams=D.teams.filter(function(t){return t.gid!==g.id;});render();});
         el.addEventListener('click',function(e){if(e.target===addBtn||e.target===del||e.target===lbl||e.target===ggrip)return;collapsed.groups[g.id]=!collapsed.groups[g.id];render();});
-        ggrip.addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault();startGroupReorder(e,g.id,el);});
+        ggrip.addEventListener('mousedown',function(e){console.log('[reorder] ggrip mousedown fired');e.stopPropagation();e.preventDefault();startGroupReorder(e,g.id,el);});
       })(row.obj);
     } else if(row.type==='team'){
       el.className='tree-team-hdr';
@@ -962,11 +962,16 @@ function startWorkerRowReorder(e,workerId,rowEl){
 // הצוותים/העובדים/המשימות/התלויות שתחתן (הן תמיד "צמודות" לפי gid, לא לפי
 // מיקום השורה).
 function startGroupReorder(e,groupId,rowEl){
+  console.log('[reorder] START groupId=',groupId,'rowEl=',rowEl);
   var dragged=D.groups.find(function(g){return g.id===groupId;});
+  console.log('[reorder] dragged=',dragged);
   if(!dragged)return;
   rowEl.style.opacity='.4';
   var lastTargetId=null,lastBefore=false;
+  var moveCount=0;
   function onMove(ev){
+    moveCount++;
+    if(moveCount===1)console.log('[reorder] first onMove fired, ev.clientY=',ev.clientY);
     // אם התוכן נבנה מחדש (למשל בגלל סנכרון ברקע) תוך כדי הגרירה, ה-DOM הישן
     // נעלם — נאתר מחדש את השורה הנגררת לפי מזהה הקבוצה, לא לפי הפניה ישנה.
     if(!document.contains(rowEl)){
@@ -974,6 +979,7 @@ function startGroupReorder(e,groupId,rowEl){
       if(fresh){rowEl=fresh;rowEl.style.opacity='.4';}
     }
     var rows=Array.from(document.querySelectorAll('.tree-group-hdr')).filter(function(r){return r.dataset.gid!==String(groupId);});
+    if(moveCount===1)console.log('[reorder] candidate rows count=',rows.length,'all group-hdr count=',document.querySelectorAll('.tree-group-hdr').length);
     var found=null,before=false;
     for(var i=0;i<rows.length;i++){
       var r=rows[i].getBoundingClientRect();
@@ -984,13 +990,15 @@ function startGroupReorder(e,groupId,rowEl){
     lastTargetId=found?found.dataset.gid:null;lastBefore=before;
   }
   function onUp(){
+    console.log('[reorder] onUp, moveCount=',moveCount,'lastTargetId=',lastTargetId,'lastBefore=',lastBefore);
     document.removeEventListener('mousemove',onMove);
     document.removeEventListener('mouseup',onUp);
     if(document.contains(rowEl))rowEl.style.opacity='';
     document.querySelectorAll('.tree-group-hdr').forEach(function(r){r.style.borderTop='';r.style.borderBottom='';});
-    if(!lastTargetId)return;
+    if(!lastTargetId){console.log('[reorder] ABORT: no target id');return;}
     var targetG=D.groups.find(function(g){return String(g.id)===lastTargetId;});
-    if(!targetG||targetG.id===dragged.id)return;
+    console.log('[reorder] targetG=',targetG);
+    if(!targetG||targetG.id===dragged.id){console.log('[reorder] ABORT: no targetG or same as dragged');return;}
     snapshot();
     D.groups=D.groups.filter(function(g){return g.id!==dragged.id;});
     var idx=D.groups.findIndex(function(g){return g.id===targetG.id;});
@@ -2565,6 +2573,24 @@ var _pt=sessionStorage.getItem('te_active_pname');
 if(_pt){var _tel=document.getElementById('plannerTitle');if(_tel)_tel.textContent='📋 '+_pt;}
 render();};
 document.getElementById('modeBtn').onclick=function(){MODE_WEEKS=!MODE_WEEKS;this.textContent=MODE_WEEKS?'📅 תאריכים':'🔢 שבועות';render();};
+
+// ── זום עם קריצה (pinch) בטראק-פד — במקום להגדיל את כל העמוד, מרחיבים את
+// ציר הזמן עצמו (כל שבוע נהיה רחב/צר יותר). דפדפנים מדווחים על קריצה
+// כ-wheel event עם ctrlKey=true, גם בלי שהמשתמש נוגע ב-Ctrl בפועל.
+(function(){
+  var tlwrap=document.getElementById('tlwrap');
+  if(!tlwrap)return;
+  tlwrap.addEventListener('wheel',function(e){
+    if(!e.ctrlKey)return; // רק קריצה/Ctrl+גלגלת — גלילה רגילה נשארת רגילה
+    e.preventDefault();
+    var delta=-e.deltaY;
+    ZL=Math.max(25,Math.min(300,ZL+(delta>0?10:-10)));
+    document.getElementById('zlbl').textContent=ZL+'%';
+    var _pt=sessionStorage.getItem('te_active_pname');
+    if(_pt){var _tel=document.getElementById('plannerTitle');if(_tel)_tel.textContent='📋 '+_pt;}
+    render();
+  },{passive:false});
+})();
 document.getElementById('undoBtn').onclick=undo;
 document.getElementById('addMsBtn').onclick=function(){openMsModal(null);};
 document.getElementById('clearDepsBtn').onclick=function(){snapshot();D.deps=[];render();toast('תלויות נוקו');};
