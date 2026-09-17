@@ -1524,13 +1524,15 @@ function render(){
   // כותרת מקבילה בתוך sbody עצמו — לכן העתקה ישירה של scrollTop גורמת לסחיפה
   // הדרגתית, שמתבטאת בבירור ליד סוף הגלילה (שם sbody "נתקע" בגבול שלו לפני
   // ש-tlwrap מגיע לגבול שלו).
+  // הסנכרון הוא לכיוון אחד בלבד: sbody מוגדר overflow:hidden ואף פעם לא
+  // נגלל ישירות על ידי המשתמש — הוא רק "עוקב" אחרי tlwrap. גרסה דו-כיוונית
+  // (עם sb.onscroll שכותב בחזרה ל-wrap) יוצרת מאבק בדיוק בגבול הגלילה, כי
+  // כל שינוי scrollTop יזום מקוצץ (clamped) בטווח התקין שלו ומחזיר ערך
+  // שמזיז את wrap בחזרה — זה בדיוק מה שגרם לאי-ההתאמה להחמיר.
+  sb.onscroll=null;
   wrap.onscroll=function(){
     var hdrH=(document.getElementById('tl-hdr')||{}).offsetHeight||0;
     sb.scrollTop=Math.max(0,wrap.scrollTop-hdrH);
-  };
-  sb.onscroll=function(){
-    var hdrH=(document.getElementById('tl-hdr')||{}).offsetHeight||0;
-    wrap.scrollTop=sb.scrollTop+hdrH;
   };
 
   // Work Plan Overlays
