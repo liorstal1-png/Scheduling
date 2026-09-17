@@ -2008,6 +2008,16 @@ function initDepCanvas(){
     _depCanvas.width=window.innerWidth;_depCanvas.height=window.innerHeight;redrawDeps();
   });
   document.getElementById('tlwrap').addEventListener('scroll',function(){redrawDeps();},{passive:true});
+  // תפיסה כללית ואמינה: כל שינוי גודל של הסיידבר (מכל סיבה — גרירת הידית,
+  // שינוי חלון, או כל דבר אחר) מזיז בפועל את כל אזור ציר הזמן בצד, ולכן
+  // תמיד צריך לצייר מחדש את קווי התלות בעקבותיו.
+  if(typeof ResizeObserver!=='undefined'){
+    var sidebarEl=document.getElementById('sidebar');
+    if(sidebarEl){
+      var ro=new ResizeObserver(function(){requestAnimationFrame(redrawDeps);});
+      ro.observe(sidebarEl);
+    }
+  }
 }
 
 function initDepHover(){
@@ -2555,8 +2565,8 @@ if(_pt){var _tel=document.getElementById('plannerTitle');if(_tel)_tel.textConten
   var rh=document.getElementById('rhSidebar'),sb=document.getElementById('sidebar');
   var drag=false,sx,sw;
   rh.addEventListener('mousedown',function(e){drag=true;sx=e.clientX;sw=sb.offsetWidth;rh.classList.add('dragging');document.body.style.cssText='cursor:col-resize;user-select:none;';document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});
-  function mv(e){if(!drag)return;sb.style.width=Math.max(80,Math.min(400,sw+(sx-e.clientX)))+'px';}
-  function up(){drag=false;rh.classList.remove('dragging');document.body.style.cssText='';document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);}
+  function mv(e){if(!drag)return;sb.style.width=Math.max(80,Math.min(400,sw+(sx-e.clientX)))+'px';requestAnimationFrame(redrawDeps);}
+  function up(){drag=false;rh.classList.remove('dragging');document.body.style.cssText='';document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);requestAnimationFrame(redrawDeps);}
 })();
 
 // ── TOOLBAR ────────────────────────────────────────────────────────────────
