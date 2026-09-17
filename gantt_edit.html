@@ -1515,12 +1515,23 @@ function render(){
   if(_savedScroll&&_tlw){
     _tlw.scrollLeft=_savedScroll.l;
     _tlw.scrollTop=_savedScroll.t;
-    sb.scrollTop=_savedScroll.t;
+    var _hdrH0=(document.getElementById('tl-hdr')||{}).offsetHeight||0;
+    sb.scrollTop=Math.max(0,_savedScroll.t-_hdrH0);
   }
 
-  // חבר scroll sync מחדש
-  wrap.onscroll=function(){sb.scrollTop=wrap.scrollTop;};
-  sb.onscroll=function(){wrap.scrollTop=sb.scrollTop;};
+  // חבר scroll sync מחדש — יש להתחשב בגובה הכותרת הדביקה (sprrow+mrow+wkrow):
+  // היא חלק מהתוכן הגלול של tlwrap (רק "דביקה" ויזואלית), אבל בסיידבר אין
+  // כותרת מקבילה בתוך sbody עצמו — לכן העתקה ישירה של scrollTop גורמת לסחיפה
+  // הדרגתית, שמתבטאת בבירור ליד סוף הגלילה (שם sbody "נתקע" בגבול שלו לפני
+  // ש-tlwrap מגיע לגבול שלו).
+  wrap.onscroll=function(){
+    var hdrH=(document.getElementById('tl-hdr')||{}).offsetHeight||0;
+    sb.scrollTop=Math.max(0,wrap.scrollTop-hdrH);
+  };
+  sb.onscroll=function(){
+    var hdrH=(document.getElementById('tl-hdr')||{}).offsetHeight||0;
+    wrap.scrollTop=sb.scrollTop+hdrH;
+  };
 
   // Work Plan Overlays
   renderTPOverlays();
