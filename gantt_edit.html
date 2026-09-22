@@ -1517,23 +1517,23 @@ function render(){
   if(_savedScroll&&_tlw){
     _tlw.scrollLeft=_savedScroll.l;
     _tlw.scrollTop=_savedScroll.t;
-    var _hdrH0=(document.getElementById('tl-hdr')||{}).offsetHeight||0;
     var _msH0=(document.querySelector('#sbody .ms-row-s')||{}).offsetHeight||0;
-    sb.scrollTop=Math.max(0,_savedScroll.t-_hdrH0+_msH0);
+    sb.scrollTop=Math.max(0,_savedScroll.t+_msH0);
   }
 
-  // חבר scroll sync מחדש. משתי הצדדים יש תוכן "נוסף" שלא מקביל אחד לשני:
-  // ב-tlwrap יש כותרת דביקה (sprrow+mrow+wkrow) שנחשבת חלק מהתוכן הגלול שלו;
-  // ב-sbody יש שורת "אבני דרך" שאין לה מקבילה ב-tlwrap. כדי שהשורות עצמן
-  // (קבוצות/עובדים) יתאימו פיקסל-לפיקסל, צריך להתחשב בהפרש בין השניים, לא רק
-  // בצד אחד — אחרת מקבלים סחיפה מצטברת בכיוון כלשהו לאורך כל הגלילה.
+  // חבר scroll sync מחדש. הכותרת הדביקה של tlwrap (sprrow+mrow+wkrow) לא
+  // "צורכת" תקציב גלילה בפועל — sticky רק קובע איך היא *מצוירת*, לא משנה את
+  // חשבון ה-scrollTop של השורות שמתחתיה (בניגוד למה שחשבתי קודם). לכן היא לא
+  // צריכה תיקון בסנכרון. מה שכן צריך תיקון: ב-sbody יש שורת "אבני דרך" שהיא
+  // אלמנט רגיל (לא sticky) — כלומר היא *באמת* "צורכת" תקציב גלילה לפני
+  // שמגיעים לשורות עצמן, ואין לה מקבילה ב-tlwrap. זה ההפרש היחיד שצריך לפצות
+  // עליו כדי שהשורות יתאימו פיקסל-לפיקסל מהתחלת הגלילה ועד סופה.
   // הסנכרון הוא לכיוון אחד בלבד: sbody מוגדר overflow:hidden ואף פעם לא
   // נגלל ישירות על ידי המשתמש — הוא רק "עוקב" אחרי tlwrap.
   sb.onscroll=null;
   wrap.onscroll=function(){
-    var hdrH=(document.getElementById('tl-hdr')||{}).offsetHeight||0;
     var msH=(document.querySelector('#sbody .ms-row-s')||{}).offsetHeight||0;
-    sb.scrollTop=Math.max(0,wrap.scrollTop-hdrH+msH);
+    sb.scrollTop=Math.max(0,wrap.scrollTop+msH);
   };
 
   // Work Plan Overlays
