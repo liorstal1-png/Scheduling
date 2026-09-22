@@ -1625,6 +1625,12 @@ function renderSidebar(gs){
       el.appendChild(row);
     });
   });
+  // ריפוד בטוח בתחתית — מבטיח ש-sbody תמיד יוכל לגלול לפחות כמו tlwrap, גם
+  // אם יש הבדל עיגול קטן כלשהו בגובה שורות בין שני הצדדים. בלי זה, הדפדפן
+  // "מקצץ" (clamp) את scrollTop של sbody בטרם עת ליד הסוף, ונוצר פער קטן.
+  var _bottomSpacer=document.createElement('div');
+  _bottomSpacer.style.cssText='height:60px;flex-shrink:0;';
+  el.appendChild(_bottomSpacer);
 }
 
 // ── project panel ─────────────────────────────────────────────────────────────
