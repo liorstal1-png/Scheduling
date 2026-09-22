@@ -1517,24 +1517,24 @@ function render(){
   if(_savedScroll&&_tlw){
     _tlw.scrollLeft=_savedScroll.l;
     _tlw.scrollTop=_savedScroll.t;
-    var _msH0=(document.querySelector('#sbody .ms-row-s')||{}).offsetHeight||0;
-    sb.scrollTop=Math.max(0,_savedScroll.t+_msH0);
   }
 
-  // חבר scroll sync מחדש. הכותרת הדביקה של tlwrap (sprrow+mrow+wkrow) לא
-  // "צורכת" תקציב גלילה בפועל — sticky רק קובע איך היא *מצוירת*, לא משנה את
-  // חשבון ה-scrollTop של השורות שמתחתיה (בניגוד למה שחשבתי קודם). לכן היא לא
-  // צריכה תיקון בסנכרון. מה שכן צריך תיקון: ב-sbody יש שורת "אבני דרך" שהיא
-  // אלמנט רגיל (לא sticky) — כלומר היא *באמת* "צורכת" תקציב גלילה לפני
-  // שמגיעים לשורות עצמן, ואין לה מקבילה ב-tlwrap. זה ההפרש היחיד שצריך לפצות
-  // עליו כדי שהשורות יתאימו פיקסל-לפיקסל מהתחלת הגלילה ועד סופה.
-  // הסנכרון הוא לכיוון אחד בלבד: sbody מוגדר overflow:hidden ואף פעם לא
-  // נגלל ישירות על ידי המשתמש — הוא רק "עוקב" אחרי tlwrap.
+  // חבר scroll sync מחדש — במדידה ישירה, לא בנוסחה תיאורטית. שני ניסיונות
+  // קודמים (הפרש כותרת דביקה, הפרש שורת אבני דרך) התבררו לא מדויקים. הפתרון
+  // האמין: למצוא עובד ששורתו מוצגת בפועל בשני הצדדים (data-wid זהה), למדוד
+  // את ההפרש **האמיתי** במיקום שלה על המסך, ולתקן בדיוק לפי זה — בלי להניח
+  // שום דבר על מבנה הכותרות. זה חסין לכל שינוי מבני עתידי בשני הצדדים.
+  function syncSidebarToTimeline(){
+    var tlRow=wrap.querySelector('.tlrow[data-wid]');
+    if(!tlRow){sb.scrollTop=wrap.scrollTop;return;}
+    var sbRow=sb.querySelector('.wrow[data-wid="'+tlRow.dataset.wid+'"]');
+    if(!sbRow){sb.scrollTop=wrap.scrollTop;return;}
+    var diff=sbRow.getBoundingClientRect().top-tlRow.getBoundingClientRect().top;
+    sb.scrollTop=Math.max(0,sb.scrollTop+diff);
+  }
   sb.onscroll=null;
-  wrap.onscroll=function(){
-    var msH=(document.querySelector('#sbody .ms-row-s')||{}).offsetHeight||0;
-    sb.scrollTop=Math.max(0,wrap.scrollTop+msH);
-  };
+  wrap.onscroll=syncSidebarToTimeline;
+  syncSidebarToTimeline(); // יישור מיידי גם בלי לחכות לאירוע גלילה ראשון
 
   // Work Plan Overlays
   renderTPOverlays();
@@ -1610,7 +1610,7 @@ function renderSidebar(gs){
       }
       var _blH2=(_activeBL!==null&&getBaselines()[_activeBL])?20:0;
       var _tpH2=(_tpActive&&_tpActive.size>0)?22:0;
-      var row=document.createElement('div'); row.className='wrow'; row.style.height=(RH+_blH2+_tpH2)+'px';
+      var row=document.createElement('div'); row.className='wrow'; row.style.height=(RH+_blH2+_tpH2)+'px'; row.dataset.wid=w.id;
       var nm=document.createElement('div'); nm.className='wname'; nm.textContent=w.name; nm.title=w.name;
       var eb=document.createElement('button'); eb.className='wedit edit-only'; eb.textContent='✏️';
       eb.onclick=function(e){e.stopPropagation();_wrkId=w.id;cEditWrk();};
