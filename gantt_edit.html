@@ -1270,13 +1270,15 @@ function render(){
         });
         if(!_ok)return;
       }
+      var _blH2t=(_activeBL!==null&&getBaselines()[_activeBL])?20:0;
+      var _tpH2t=(_tpActive&&_tpActive.size>0)?22:0;
       var row=document.createElement('div');
-      row.className='tlrow'; row.style.width=TW+'px'; row.style.height=RH+'px'; row.dataset.wid=w.id;
+      row.className='tlrow'; row.style.width=TW+'px'; row.style.height=(RH+_blH2t+_tpH2t)+'px'; row.dataset.wid=w.id;
       for(var i=TL_WEEKS-1;i>=0;i--){
         var d=wkDate(i), isTW=TODAY.getTime()>=d.getTime()&&TODAY.getTime()<d.getTime()+7*86400000;
         var _holSet=getHolWeeks(); var isHolW=_holSet.has(i);
       var c=document.createElement('div'); c.className='tcell'+(isTW?' tw':'')+(isHolW?' hol':'');
-        c.style.width=WW_+'px'; c.style.height=RH+'px';
+        c.style.width=WW_+'px'; c.style.height=(RH+_blH2t+_tpH2t)+'px';
         row.appendChild(c);
       }
       D.assignments.filter(function(a){return a.workerId===w.id;}).forEach(function(a){
@@ -1516,23 +1518,22 @@ function render(){
     _tlw.scrollLeft=_savedScroll.l;
     _tlw.scrollTop=_savedScroll.t;
     var _hdrH0=(document.getElementById('tl-hdr')||{}).offsetHeight||0;
-    sb.scrollTop=Math.max(0,_savedScroll.t-_hdrH0);
+    var _msH0=(document.querySelector('#sbody .ms-row-s')||{}).offsetHeight||0;
+    sb.scrollTop=Math.max(0,_savedScroll.t-_hdrH0+_msH0);
   }
 
-  // חבר scroll sync מחדש — יש להתחשב בגובה הכותרת הדביקה (sprrow+mrow+wkrow):
-  // היא חלק מהתוכן הגלול של tlwrap (רק "דביקה" ויזואלית), אבל בסיידבר אין
-  // כותרת מקבילה בתוך sbody עצמו — לכן העתקה ישירה של scrollTop גורמת לסחיפה
-  // הדרגתית, שמתבטאת בבירור ליד סוף הגלילה (שם sbody "נתקע" בגבול שלו לפני
-  // ש-tlwrap מגיע לגבול שלו).
+  // חבר scroll sync מחדש. משתי הצדדים יש תוכן "נוסף" שלא מקביל אחד לשני:
+  // ב-tlwrap יש כותרת דביקה (sprrow+mrow+wkrow) שנחשבת חלק מהתוכן הגלול שלו;
+  // ב-sbody יש שורת "אבני דרך" שאין לה מקבילה ב-tlwrap. כדי שהשורות עצמן
+  // (קבוצות/עובדים) יתאימו פיקסל-לפיקסל, צריך להתחשב בהפרש בין השניים, לא רק
+  // בצד אחד — אחרת מקבלים סחיפה מצטברת בכיוון כלשהו לאורך כל הגלילה.
   // הסנכרון הוא לכיוון אחד בלבד: sbody מוגדר overflow:hidden ואף פעם לא
-  // נגלל ישירות על ידי המשתמש — הוא רק "עוקב" אחרי tlwrap. גרסה דו-כיוונית
-  // (עם sb.onscroll שכותב בחזרה ל-wrap) יוצרת מאבק בדיוק בגבול הגלילה, כי
-  // כל שינוי scrollTop יזום מקוצץ (clamped) בטווח התקין שלו ומחזיר ערך
-  // שמזיז את wrap בחזרה — זה בדיוק מה שגרם לאי-ההתאמה להחמיר.
+  // נגלל ישירות על ידי המשתמש — הוא רק "עוקב" אחרי tlwrap.
   sb.onscroll=null;
   wrap.onscroll=function(){
     var hdrH=(document.getElementById('tl-hdr')||{}).offsetHeight||0;
-    sb.scrollTop=Math.max(0,wrap.scrollTop-hdrH);
+    var msH=(document.querySelector('#sbody .ms-row-s')||{}).offsetHeight||0;
+    sb.scrollTop=Math.max(0,wrap.scrollTop-hdrH+msH);
   };
 
   // Work Plan Overlays
