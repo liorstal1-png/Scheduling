@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>שיבוץ עובדים v52</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{--bg:#F5F4F0;--sur:#fff;--brd:#E0DED8;--txt:#1A1A18;--mut:#888780;--fnt:#B4B2A9;--acc:#378ADD;--r:8px;}
@@ -408,6 +409,8 @@ body:not(.edit-mode) .edit-only{display:none!important;}
       <div class="ci" onclick="openSummary();document.getElementById('more-menu').style.display='none';">📊 מבט על</div>
       <div class="ci" onclick="openAnalytics();document.getElementById('more-menu').style.display='none';">📈 ניתוחים</div>
       <div class="ci" onclick="openSprintReport();document.getElementById('more-menu').style.display='none';">🏁 דוח ספרינטים</div>
+      <div class="ci" onclick="openQuarterlyForecast();document.getElementById('more-menu').style.display='none';">📈 תחזית רבעונית</div>
+      <div class="ci" onclick="openHoursReport();document.getElementById('more-menu').style.display='none';">⏱ דוח שעות לתקופה</div>
       <div style="height:1px;background:var(--brd);margin:4px 0;"></div>
       <div class="ci" id="toggle-al-mi" onclick="toggleShowAl();">👁 הצג שיבוץ על</div>
 
@@ -527,6 +530,50 @@ body:not(.edit-mode) .edit-only{display:none!important;}
       </div>
     </div>
     <div class="mbody" id="sprintReportBody" style="max-height:75vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Quarterly forecast modal -->
+<div class="ov" id="qfModal" onclick="if(event.target===this)cm('qfModal')">
+  <div class="modal" style="max-width:900px;width:92vw;min-height:320px;">
+    <div class="mhdr" style="align-items:center;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="zbtn" id="qfPrevBtn" title="רבעון קודם">›</button>
+        <div class="mtitle" id="qfQuarterName" style="font-size:15px;">📈 תחזית רבעונית</div>
+        <button class="zbtn" id="qfNextBtn" title="רבעון הבא">‹</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="btn btn-sm" id="qfExportBtn">📥 Excel</button>
+        <button class="mx" onclick="cm('qfModal')">✕</button>
+      </div>
+    </div>
+    <div class="mbody" id="qfBody" style="max-height:75vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Hours-by-period report modal -->
+<div class="ov" id="hrModal" onclick="if(event.target===this)cm('hrModal')">
+  <div class="modal" style="max-width:980px;width:94vw;min-height:320px;">
+    <div class="mhdr" style="align-items:center;">
+      <div class="mtitle" style="font-size:15px;">⏱ דוח שעות לתקופה</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="btn btn-sm" id="hrExportBtn">📥 Excel</button>
+        <button class="mx" onclick="cm('hrModal')">✕</button>
+      </div>
+    </div>
+    <div style="padding:10px 14px;border-bottom:1px solid var(--brd);display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+      <select id="hr-year" style="font-family:Heebo,sans-serif;font-size:12px;padding:5px 8px;border:1px solid var(--brd);border-radius:6px;"></select>
+      <button class="btn btn-sm" onclick="hrSetQuarter(1)">Q1</button>
+      <button class="btn btn-sm" onclick="hrSetQuarter(2)">Q2</button>
+      <button class="btn btn-sm" onclick="hrSetQuarter(3)">Q3</button>
+      <button class="btn btn-sm" onclick="hrSetQuarter(4)">Q4</button>
+      <button class="btn btn-sm" onclick="hrSetYear()">שנה מלאה</button>
+      <span style="color:var(--mut);font-size:12px;margin:0 6px;">או טווח חופשי:</span>
+      <input type="date" id="hr-from" onchange="hrRender()" style="font-family:Heebo,sans-serif;font-size:12px;padding:5px 8px;border:1px solid var(--brd);border-radius:6px;"/>
+      <span style="color:var(--mut);">→</span>
+      <input type="date" id="hr-to" onchange="hrRender()" style="font-family:Heebo,sans-serif;font-size:12px;padding:5px 8px;border:1px solid var(--brd);border-radius:6px;"/>
+    </div>
+    <div class="mbody" id="hrBody" style="max-height:70vh;overflow:auto;"></div>
   </div>
 </div>
 
@@ -771,6 +818,21 @@ function sunday(d){ // previous or same Sunday
 function addW(d,n){return new Date(d.getTime()+n*7*86400000);}
 function addD(d,n){return new Date(d.getTime()+n*86400000);}
 function diffW(a,b){return (b.getTime()-a.getTime())/(7*86400000);}
+function quarterKeyOf(d){return d.getFullYear()+'-Q'+(Math.floor(d.getMonth()/3)+1);}
+function quarterRange(key){
+  var parts=key.split('-Q');
+  var y=+parts[0], q=+parts[1];
+  var start=new Date(y,(q-1)*3,1,12,0,0,0);
+  var end=new Date(y,(q-1)*3+3,0,12,0,0,0); // יום אחרון של הרבעון
+  return {start:start,end:end};
+}
+function shiftQuarterKey(key,delta){
+  var parts=key.split('-Q');
+  var y=+parts[0], q=+parts[1]+delta;
+  while(q<1){q+=4;y--;}
+  while(q>4){q-=4;y++;}
+  return y+'-Q'+q;
+}
 
 // ── timeline state ────────────────────────────────────────────────────────────
 var TL_START=sunday(TODAY);
@@ -3506,6 +3568,356 @@ function _srGroups(){
   if(no.length)gs.push({team:null,workers:no});
   return gs;
 }
+// ── תחזית רבעונית — דוח לכל הפרויקטים: מלל חופשי, אבני דרך חוזיות, סיכום
+// שעות שיבוץ בפועל, ותוספת שבועות עבור עובדים שלא נמצאים במערכת (נכלל בסך
+// השעות למרות שאין להם D.assignments אמיתי) ────────────────────────────────
+var _qfKey=quarterKeyOf(new Date());
+
+function qfEnsure(projectId){
+  if(!D.quarterlyForecast)D.quarterlyForecast={};
+  if(!D.quarterlyForecast[_qfKey])D.quarterlyForecast[_qfKey]={};
+  if(!D.quarterlyForecast[_qfKey][projectId])D.quarterlyForecast[_qfKey][projectId]={notes:'',milestones:[],extraWeeks:[]};
+  return D.quarterlyForecast[_qfKey][projectId];
+}
+
+// מספר שעות מתוזמנות בפועל בתוך טווח הרבעון, עבור קבוצת פרויקטים (עבור פרויקט
+// אב — כל פרויקטי הבן שלו יחד; עבור פרויקט עצמאי — רק הוא עצמו) — לפי חפיפת
+// ימים בין כל שיבוץ (D.assignments) לטווח הרבעון, מומר לשבועות ואז לשעות.
+function qfScheduledHours2(projectIds,range){
+  var HPW=D.hoursPerWeek||42;
+  var idSet={};(projectIds||[]).forEach(function(id){idSet[id]=true;});
+  var totalDays=0;
+  D.assignments.forEach(function(a){
+    if(!idSet[a.projectId]||a.absence)return;
+    var as=pd(a.start), ae=pd(a.end);
+    if(ae<range.start||as>range.end)return;
+    var os=as<range.start?range.start:as;
+    var oe=ae>range.end?range.end:ae;
+    var days=Math.round((oe.getTime()-os.getTime())/86400000)+1;
+    totalDays+=Math.max(0,days);
+  });
+  return Math.round((totalDays/7)*HPW);
+}
+
+function qfExtraHours(qf){
+  var HPW=D.hoursPerWeek||42;
+  var weeks=0;
+  (qf.extraWeeks||[]).forEach(function(x){weeks+=(+x.weeks||0);});
+  return Math.round(weeks*HPW);
+}
+
+function openQuarterlyForecast(){
+  renderQuarterlyForecast();
+  om('qfModal');
+}
+
+function renderQuarterlyForecast(){
+  var range=quarterRange(_qfKey);
+  document.getElementById('qfQuarterName').textContent='📈 תחזית '+_qfKey+' ('+fd(range.start)+' → '+fd(range.end)+')';
+  var body=document.getElementById('qfBody');
+  body.innerHTML='';
+
+  // ישות = פרויקט אב (עם כל פרויקטי הבן שלו מגולגלים יחד) — או פרויקט רגיל
+  // שאין לו אב בכלל. פרויקטי בן (עם אב) לא מקבלים כרטיס נפרד משלהם.
+  var entities=[];
+  (D.parentProjects||[]).forEach(function(pp){
+    var childIds=D.projects.filter(function(p){return p.parentId===pp.id&&!p.inactive;}).map(function(p){return p.id;});
+    entities.push({id:pp.id,name:pp.name,color:pp.color,projectIds:childIds});
+  });
+  D.projects.filter(function(p){return !p.parentId&&!p.inactive;}).forEach(function(p){
+    entities.push({id:p.id,name:p.name,color:p.color,projectIds:[p.id]});
+  });
+
+  if(!entities.length){body.innerHTML='<div style="color:var(--mut);padding:10px;">אין פרויקטים פעילים</div>';return;}
+
+  entities.forEach(function(p){
+    var qf=qfEnsure(p.id);
+    var schedH=qfScheduledHours2(p.projectIds,range);
+    var extraH=qfExtraHours(qf);
+    var totalH=schedH+extraH;
+
+    var card=document.createElement('div');
+    card.style.cssText='margin-bottom:16px;border:1px solid var(--brd);border-radius:10px;overflow:hidden;';
+
+    var hdr=document.createElement('div');
+    hdr.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;background:'+(p.color||'#378ADD')+';color:#fff;';
+    hdr.innerHTML='<span style="font-weight:700;font-size:14px;flex:1;">'+p.name+'</span>'
+      +'<span style="font-size:12px;opacity:.9;">מתוזמן: '+schedH+' שע׳</span>'
+      +'<span style="font-size:12px;opacity:.9;">תוספת: '+extraH+' שע׳</span>'
+      +'<span style="font-weight:700;font-size:13px;background:rgba(255,255,255,.25);padding:3px 10px;border-radius:12px;">סה"כ: '+totalH+' שע׳</span>';
+    card.appendChild(hdr);
+
+    var bodyEl=document.createElement('div');
+    bodyEl.style.cssText='padding:12px 14px;display:flex;flex-direction:column;gap:12px;background:var(--sur);';
+
+    // מלל חופשי
+    var notesWrap=document.createElement('div');
+    notesWrap.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--mut);margin-bottom:4px;">📝 הערות</div>';
+    var notesTa=document.createElement('textarea');
+    notesTa.rows=2;
+    notesTa.value=qf.notes||'';
+    notesTa.style.cssText='width:100%;font-family:Heebo,sans-serif;font-size:12px;padding:6px 8px;border:1px solid var(--brd);border-radius:6px;background:var(--bg);resize:vertical;direction:rtl;';
+    notesTa.addEventListener('blur',function(){qf.notes=notesTa.value;save();});
+    notesWrap.appendChild(notesTa);
+    bodyEl.appendChild(notesWrap);
+
+    // אבני דרך חוזיות
+    var msWrap=document.createElement('div');
+    msWrap.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--mut);margin-bottom:4px;">🚩 אבני דרך חוזיות</div>';
+    var msList=document.createElement('div');
+    msList.style.cssText='display:flex;flex-direction:column;gap:4px;margin-bottom:6px;';
+    (qf.milestones||[]).forEach(function(m,idx){
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 8px;background:var(--bg);border-radius:6px;';
+      row.innerHTML='<span style="flex:1;">'+m.name+'</span><span style="color:var(--mut);">'+m.date+'</span>';
+      var delBtn=document.createElement('button');
+      delBtn.textContent='✕';delBtn.className='edit-only';
+      delBtn.style.cssText='background:none;border:none;color:#E24B4A;cursor:pointer;font-size:11px;';
+      delBtn.addEventListener('click',function(){qf.milestones.splice(idx,1);save();renderQuarterlyForecast();});
+      row.appendChild(delBtn);
+      msList.appendChild(row);
+    });
+    msWrap.appendChild(msList);
+    var msAdd=document.createElement('div');
+    msAdd.className='edit-only';
+    msAdd.style.cssText='display:flex;gap:6px;';
+    var msNameInp=document.createElement('input');
+    msNameInp.placeholder='שם אבן הדרך...';
+    msNameInp.style.cssText='flex:1;font-family:Heebo,sans-serif;font-size:12px;padding:5px 8px;border:1px solid var(--brd);border-radius:6px;direction:rtl;';
+    var msDateInp=document.createElement('input');
+    msDateInp.type='date';
+    msDateInp.style.cssText='font-family:Heebo,sans-serif;font-size:12px;padding:5px 8px;border:1px solid var(--brd);border-radius:6px;';
+    var msAddBtn=document.createElement('button');
+    msAddBtn.className='btn btn-sm';msAddBtn.textContent='+ הוסף';
+    msAddBtn.addEventListener('click',function(){
+      var nm=msNameInp.value.trim(), dt=msDateInp.value;
+      if(!nm||!dt)return;
+      qf.milestones=qf.milestones||[];
+      qf.milestones.push({name:nm,date:dt});
+      save();renderQuarterlyForecast();
+    });
+    msAdd.appendChild(msNameInp);msAdd.appendChild(msDateInp);msAdd.appendChild(msAddBtn);
+    msWrap.appendChild(msAdd);
+    bodyEl.appendChild(msWrap);
+
+    // תוספת שבועות לעובדים שלא במערכת
+    var exWrap=document.createElement('div');
+    exWrap.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--mut);margin-bottom:4px;">➕ תוספת שבועות (עובדים שלא בשיבוץ)</div>';
+    var exList=document.createElement('div');
+    exList.style.cssText='display:flex;flex-direction:column;gap:4px;margin-bottom:6px;';
+    (qf.extraWeeks||[]).forEach(function(x,idx){
+      var row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 8px;background:var(--bg);border-radius:6px;';
+      row.innerHTML='<span style="flex:1;">'+x.label+'</span><span style="color:var(--mut);">'+x.weeks+' שבועות · '+Math.round((+x.weeks||0)*(D.hoursPerWeek||42))+' שע׳</span>';
+      var delBtn=document.createElement('button');
+      delBtn.textContent='✕';delBtn.className='edit-only';
+      delBtn.style.cssText='background:none;border:none;color:#E24B4A;cursor:pointer;font-size:11px;';
+      delBtn.addEventListener('click',function(){qf.extraWeeks.splice(idx,1);save();renderQuarterlyForecast();});
+      row.appendChild(delBtn);
+      exList.appendChild(row);
+    });
+    exWrap.appendChild(exList);
+    var exAdd=document.createElement('div');
+    exAdd.className='edit-only';
+    exAdd.style.cssText='display:flex;gap:6px;';
+    var exLabelInp=document.createElement('input');
+    exLabelInp.placeholder='שם/תיאור (למשל: יועץ חיצוני)...';
+    exLabelInp.style.cssText='flex:1;font-family:Heebo,sans-serif;font-size:12px;padding:5px 8px;border:1px solid var(--brd);border-radius:6px;direction:rtl;';
+    var exWeeksInp=document.createElement('input');
+    exWeeksInp.type='number';exWeeksInp.min='0.5';exWeeksInp.step='0.5';exWeeksInp.placeholder='שבועות';
+    exWeeksInp.style.cssText='width:80px;font-family:Heebo,sans-serif;font-size:12px;padding:5px 8px;border:1px solid var(--brd);border-radius:6px;';
+    var exAddBtn=document.createElement('button');
+    exAddBtn.className='btn btn-sm';exAddBtn.textContent='+ הוסף';
+    exAddBtn.addEventListener('click',function(){
+      var lbl=exLabelInp.value.trim(), wk=+exWeeksInp.value;
+      if(!lbl||!wk)return;
+      qf.extraWeeks=qf.extraWeeks||[];
+      qf.extraWeeks.push({label:lbl,weeks:wk});
+      save();renderQuarterlyForecast();
+    });
+    exAdd.appendChild(exLabelInp);exAdd.appendChild(exWeeksInp);exAdd.appendChild(exAddBtn);
+    exWrap.appendChild(exAdd);
+    bodyEl.appendChild(exWrap);
+
+    card.appendChild(bodyEl);
+    body.appendChild(card);
+  });
+
+  document.querySelectorAll('#qfBody .edit-only').forEach(function(elx){elx.style.display=EDIT_MODE?'':'none';});
+}
+
+document.getElementById('qfPrevBtn').addEventListener('click',function(){_qfKey=shiftQuarterKey(_qfKey,-1);renderQuarterlyForecast();});
+document.getElementById('qfNextBtn').addEventListener('click',function(){_qfKey=shiftQuarterKey(_qfKey,1);renderQuarterlyForecast();});
+document.getElementById('qfExportBtn').addEventListener('click',function(){
+  if(typeof XLSX==='undefined'){showToast&&showToast('טוען ספריית אקסל...');return;}
+  var range=quarterRange(_qfKey);
+  var rows=[['פרויקט','שעות מתוזמנות','שעות תוספת','סה"כ שעות','הערות','אבני דרך חוזיות']];
+  var entities=[];
+  (D.parentProjects||[]).forEach(function(pp){
+    var childIds=D.projects.filter(function(p){return p.parentId===pp.id&&!p.inactive;}).map(function(p){return p.id;});
+    entities.push({id:pp.id,name:pp.name,projectIds:childIds});
+  });
+  D.projects.filter(function(p){return !p.parentId&&!p.inactive;}).forEach(function(p){
+    entities.push({id:p.id,name:p.name,projectIds:[p.id]});
+  });
+  entities.forEach(function(p){
+    var qf=qfEnsure(p.id);
+    var schedH=qfScheduledHours2(p.projectIds,range);
+    var extraH=qfExtraHours(qf);
+    var msTxt=(qf.milestones||[]).map(function(m){return m.name+' ('+m.date+')';}).join(' | ');
+    rows.push([p.name,schedH,extraH,schedH+extraH,qf.notes||'',msTxt]);
+  });
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:22},{wch:14},{wch:14},{wch:12},{wch:30},{wch:40}];
+  XLSX.utils.book_append_sheet(wb,ws,_qfKey);
+  XLSX.writeFile(wb,'תחזית_רבעונית_'+_qfKey+'.xlsx');
+});
+window.openQuarterlyForecast=openQuarterlyForecast;
+
+// ── דוח שעות לתקופה — כמה שעות (שבועות × הגדרת שעות/שבוע) יש בכל פרויקט
+// בכל חודש בתקופה שנבחרה. שיבוץ שחוצה גבול חודש מתחלק לפי ימים. ───────────
+var _hrMonthNames=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+var _hrInit=false;
+var _hrLast=null; // התוצאה האחרונה שחושבה — לייצוא
+
+function hrMonths(sd,ed){
+  var out=[];
+  var cur=new Date(sd.getFullYear(),sd.getMonth(),1,12,0,0,0);
+  while(cur.getTime()<=ed.getTime()){
+    var mEnd=new Date(cur.getFullYear(),cur.getMonth()+1,0,12,0,0,0);
+    out.push({
+      label:_hrMonthNames[cur.getMonth()]+' '+cur.getFullYear(),
+      start:cur.getTime()<sd.getTime()?sd:new Date(cur),
+      end:mEnd.getTime()>ed.getTime()?ed:mEnd
+    });
+    cur=new Date(cur.getFullYear(),cur.getMonth()+1,1,12,0,0,0);
+  }
+  return out;
+}
+function hrFmt(x){
+  var r=Math.round(x*10)/10;
+  return r===0?'—':String(r);
+}
+function hrSetQuarter(q){
+  var y=+document.getElementById('hr-year').value;
+  var st=new Date(y,(q-1)*3,1,12), en=new Date(y,(q-1)*3+3,0,12);
+  document.getElementById('hr-from').value=fd(st);
+  document.getElementById('hr-to').value=fd(en);
+  hrRender();
+}
+function hrSetYear(){
+  var y=+document.getElementById('hr-year').value;
+  document.getElementById('hr-from').value=fd(new Date(y,0,1,12));
+  document.getElementById('hr-to').value=fd(new Date(y,11,31,12));
+  hrRender();
+}
+function openHoursReport(){
+  if(!_hrInit){
+    var ys=document.getElementById('hr-year'),cy=new Date().getFullYear();
+    ys.innerHTML='';
+    for(var y=cy-2;y<=cy+3;y++){var o=document.createElement('option');o.value=y;o.textContent=y;if(y===cy)o.selected=true;ys.appendChild(o);}
+    var qr=quarterRange(quarterKeyOf(new Date()));
+    document.getElementById('hr-from').value=fd(qr.start);
+    document.getElementById('hr-to').value=fd(qr.end);
+    _hrInit=true;
+  }
+  hrRender();
+  om('hrModal');
+}
+function hrRender(){
+  var body=document.getElementById('hrBody');
+  var sv=document.getElementById('hr-from').value, ev=document.getElementById('hr-to').value;
+  _hrLast=null;
+  if(!sv||!ev){body.innerHTML='<div style="color:var(--mut);padding:10px;">בחר תאריך התחלה וסיום</div>';return;}
+  var sd=pd(sv), ed=pd(ev);
+  if(sd.getTime()>ed.getTime()){body.innerHTML='<div style="color:#E24B4A;padding:10px;">תאריך ההתחלה מאוחר מתאריך הסיום</div>';return;}
+  var HPW=D.hoursPerWeek||42;
+  var months=hrMonths(sd,ed);
+
+  // שעות לפי פרויקט ולפי חודש
+  var hrs={};
+  D.assignments.forEach(function(a){
+    if(a.absence||!a.projectId)return;
+    var as=pd(a.start), ae=pd(a.end);
+    months.forEach(function(m,i){
+      var os=as.getTime()>m.start.getTime()?as:m.start;
+      var oe=ae.getTime()<m.end.getTime()?ae:m.end;
+      var days=Math.round((oe.getTime()-os.getTime())/86400000)+1;
+      if(days<=0)return;
+      if(!hrs[a.projectId])hrs[a.projectId]=months.map(function(){return 0;});
+      hrs[a.projectId][i]+=days/7*HPW;
+    });
+  });
+  function sum(arr){return arr.reduce(function(t,x){return t+x;},0);}
+
+  var projById={};D.projects.forEach(function(p){projById[p.id]=p;});
+  var parentById={};(D.parentProjects||[]).forEach(function(pp){parentById[pp.id]=pp;});
+  var rows=[]; // {kind:'parent'|'child'|'single', name, color, vals}
+  (D.parentProjects||[]).forEach(function(pp){
+    var kids=D.projects.filter(function(p){return p.parentId===pp.id&&hrs[p.id]&&sum(hrs[p.id])>0;});
+    if(!kids.length)return;
+    var tot=months.map(function(_,i){return kids.reduce(function(t,k){return t+hrs[k.id][i];},0);});
+    rows.push({kind:'parent',name:pp.name,color:pp.color,vals:tot});
+    kids.forEach(function(k){rows.push({kind:'child',name:k.name,color:k.color,vals:hrs[k.id]});});
+  });
+  D.projects.filter(function(p){return (!p.parentId||!parentById[p.parentId])&&hrs[p.id]&&sum(hrs[p.id])>0;}).forEach(function(p){
+    rows.push({kind:'single',name:p.name,color:p.color,vals:hrs[p.id]});
+  });
+
+  if(!rows.length){body.innerHTML='<div style="color:var(--mut);padding:10px;">אין שיבוצים בתקופה שנבחרה</div>';return;}
+
+  // סה"כ כללי — פרויקטים בודדים בלבד (בלי לספור פעמיים את שורות האב)
+  var grand=months.map(function(_,i){
+    return rows.filter(function(r){return r.kind!=='parent';}).reduce(function(t,r){return t+r.vals[i];},0);
+  });
+  _hrLast={months:months,rows:rows,grand:grand,HPW:HPW,from:sv,to:ev};
+
+  var th='padding:7px 10px;font-size:12px;font-weight:700;border-bottom:2px solid var(--brd);background:var(--bg);white-space:nowrap;';
+  var html='<div style="font-size:12px;color:var(--mut);margin-bottom:8px;">חישוב לפי <b>'+HPW+'</b> שעות לשבוע (הגדרת תוכניות העבודה) · סה"כ בתקופה: <b style="color:var(--txt);">'+hrFmt(sum(grand))+'</b> שעות</div>';
+  html+='<table style="border-collapse:collapse;width:100%;font-family:Heebo,sans-serif;direction:rtl;">';
+  html+='<thead><tr><th style="'+th+'text-align:right;">פרויקט</th>';
+  months.forEach(function(m){html+='<th style="'+th+'text-align:center;">'+m.label+'</th>';});
+  html+='<th style="'+th+'text-align:center;background:#EAF2FB;">סה"כ</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var isP=r.kind==='parent', isC=r.kind==='child';
+    var rowBg=isP?'background:#F3F1EC;font-weight:700;':'';
+    var td='padding:6px 10px;font-size:12px;border-bottom:1px solid var(--brd);';
+    html+='<tr style="'+rowBg+'"><td style="'+td+'text-align:right;white-space:nowrap;'+(isC?'padding-right:26px;':'')+'">'
+      +'<span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:'+(r.color||'#999')+';margin-left:7px;vertical-align:middle;"></span>'
+      +(isC?'↳ ':'')+r.name+'</td>';
+    r.vals.forEach(function(v){html+='<td style="'+td+'text-align:center;'+(v===0?'color:var(--fnt);':'')+'">'+hrFmt(v)+'</td>';});
+    html+='<td style="'+td+'text-align:center;font-weight:700;background:#F5F9FE;">'+hrFmt(sum(r.vals))+'</td></tr>';
+  });
+  var tf='padding:8px 10px;font-size:12px;font-weight:700;background:#1E3A5F;color:#fff;';
+  html+='<tr><td style="'+tf+'text-align:right;">סה"כ</td>';
+  grand.forEach(function(v){html+='<td style="'+tf+'text-align:center;">'+hrFmt(v)+'</td>';});
+  html+='<td style="'+tf+'text-align:center;">'+hrFmt(sum(grand))+'</td></tr>';
+  html+='</tbody></table>';
+  body.innerHTML=html;
+}
+document.getElementById('hrExportBtn').addEventListener('click',function(){
+  if(!_hrLast){showToast('אין נתונים לייצוא');return;}
+  if(typeof XLSX==='undefined'){showToast('טוען ספריית אקסל...');return;}
+  var L=_hrLast;
+  function sum(arr){return arr.reduce(function(t,x){return t+x;},0);}
+  function r1(x){return Math.round(x*10)/10;}
+  var data=[['פרויקט'].concat(L.months.map(function(m){return m.label;}),['סה"כ'])];
+  L.rows.forEach(function(r){
+    data.push([(r.kind==='child'?'   ↳ ':'')+r.name].concat(r.vals.map(r1),[r1(sum(r.vals))]));
+  });
+  data.push(['סה"כ'].concat(L.grand.map(r1),[r1(sum(L.grand))]));
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:30}].concat(L.months.map(function(){return {wch:14};}),[{wch:12}]);
+  XLSX.utils.book_append_sheet(wb,ws,'שעות');
+  XLSX.writeFile(wb,'דוח_שעות_'+L.from+'_עד_'+L.to+'.xlsx');
+});
+window.openHoursReport=openHoursReport;
+window.hrSetQuarter=hrSetQuarter;
+window.hrSetYear=hrSetYear;
+window.hrRender=hrRender;
+
 function openSprintReport(){
   var sorted=_srSortedSprints();
   if(!sorted.length){showToast('אין ספרינטים מוגדרים');return;}
