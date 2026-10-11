@@ -3581,22 +3581,24 @@ function qfEnsure(projectId){
 }
 
 // מספר שעות מתוזמנות בפועל בתוך טווח הרבעון, עבור קבוצת פרויקטים (עבור פרויקט
-// אב — כל פרויקטי הבן שלו יחד; עבור פרויקט עצמאי — רק הוא עצמו) — לפי חפיפת
-// ימים בין כל שיבוץ (D.assignments) לטווח הרבעון, מומר לשבועות ואז לשעות.
+// אב — כל פרויקטי הבן שלו יחד; עבור פרויקט עצמאי — רק הוא עצמו). שיבוץ = שבועות
+// שלמים; כל יום עבודה (ראשון–חמישי) שבתוך הרבעון שווה שעות-לשבוע ÷ 5.
 function qfScheduledHours2(projectIds,range){
   var HPW=D.hoursPerWeek||42;
   var idSet={};(projectIds||[]).forEach(function(id){idSet[id]=true;});
-  var totalDays=0;
+  var workdays=0;
   D.assignments.forEach(function(a){
     if(!idSet[a.projectId]||a.absence)return;
-    var as=pd(a.start), ae=pd(a.end);
-    if(ae<range.start||as>range.end)return;
-    var os=as<range.start?range.start:as;
-    var oe=ae>range.end?range.end:ae;
-    var days=Math.round((oe.getTime()-os.getTime())/86400000)+1;
-    totalDays+=Math.max(0,days);
+    var w=sunday(pd(a.start)), last=sunday(pd(a.end));
+    while(w.getTime()<=last.getTime()){
+      for(var k=0;k<5;k++){
+        var dd=hrAddDays(w,k);
+        if(dd.getTime()>=range.start.getTime()&&dd.getTime()<=range.end.getTime())workdays++;
+      }
+      w=hrAddDays(w,7);
+    }
   });
-  return Math.round((totalDays/7)*HPW);
+  return Math.round(workdays*(HPW/5)*10)/10;
 }
 
 function qfExtraHours(qf){
@@ -3777,6 +3779,8 @@ window.openQuarterlyForecast=openQuarterlyForecast;
 
 // ── דוח שעות לתקופה — כמה שעות (שבועות × הגדרת שעות/שבוע) יש בכל פרויקט
 // בכל חודש בתקופה שנבחרה. שיבוץ שחוצה גבול חודש מתחלק לפי ימים. ───────────
+// הוספת ימים לפי רכיבי תאריך (לא לפי אלפיות שנייה) — בטוח מול מעבר שעון קיץ/חורף
+function hrAddDays(d,n){return new Date(d.getFullYear(),d.getMonth(),d.getDate()+n,12,0,0,0);}
 var _hrMonthNames=['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 var _hrInit=false;
 var _hrLast=null; // התוצאה האחרונה שחושבה — לייצוא
@@ -3836,18 +3840,29 @@ function hrRender(){
   var months=hrMonths(sd,ed);
 
   // שעות לפי פרויקט ולפי חודש
+  // שיבוץ = שבועות שלמים: start ו-end הם ימי ראשון של השבוע הראשון והאחרון,
+  // כך שמספר השבועות = שבועות מ-start עד end כולל. שבוע שחוצה גבול חודש
+  // מתחלק בין החודשים לפי ימי עבודה (ראשון–חמישי, 5 ימים): כל יום עבודה =
+  // שעות-לשבוע ÷ 5 (ב-40 שעות: 8 שעות ליום), לכן יוצאים מספרים עגולים.
   var hrs={};
+  var perDay=HPW/5;
   D.assignments.forEach(function(a){
     if(a.absence||!a.projectId)return;
-    var as=pd(a.start), ae=pd(a.end);
-    months.forEach(function(m,i){
-      var os=as.getTime()>m.start.getTime()?as:m.start;
-      var oe=ae.getTime()<m.end.getTime()?ae:m.end;
-      var days=Math.round((oe.getTime()-os.getTime())/86400000)+1;
-      if(days<=0)return;
-      if(!hrs[a.projectId])hrs[a.projectId]=months.map(function(){return 0;});
-      hrs[a.projectId][i]+=days/7*HPW;
-    });
+    var w=sunday(pd(a.start)), last=sunday(pd(a.end));
+    while(w.getTime()<=last.getTime()){
+      for(var k=0;k<5;k++){
+        var dd=hrAddDays(w,k);
+        if(dd.getTime()<sd.getTime()||dd.getTime()>ed.getTime())continue;
+        for(var i=0;i<months.length;i++){
+          if(dd.getTime()>=months[i].start.getTime()&&dd.getTime()<=months[i].end.getTime()){
+            if(!hrs[a.projectId])hrs[a.projectId]=months.map(function(){return 0;});
+            hrs[a.projectId][i]+=perDay;
+            break;
+          }
+        }
+      }
+      w=hrAddDays(w,7);
+    }
   });
   function sum(arr){return arr.reduce(function(t,x){return t+x;},0);}
 
