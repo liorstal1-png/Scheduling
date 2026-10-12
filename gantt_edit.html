@@ -1309,6 +1309,7 @@ function render(){
             _selectedBlkIds=[a.id]; blk.classList.add('selected');
           }
         });
+        fitHandles(blk,rh,lh);
         makeDrag(blk,a); makeResize(rh,blk,a); makeResizeLeft(lh,blk,a);
         ghdr.appendChild(blk);
       });
@@ -1428,6 +1429,7 @@ function render(){
             _selectedBlkIds=[a.id]; blk.classList.add('selected');
           }
         });
+        fitHandles(blk,rh,lh);
         makeDrag(blk,a); makeResize(rh,blk,a);
         row.appendChild(blk);
       });
@@ -1978,8 +1980,28 @@ function renderFilter(){
 }
 
 // ── drag & resize ─────────────────────────────────────────────────────────────
+// הזזת תאריך (מחרוזת YYYY-MM-DD) במספר שבועות שלמים — לפי רכיבי תאריך ולא
+// לפי אלפיות שנייה, כדי שלא יהיו סטיות סביב מעבר שעון קיץ/חורף
+function shiftDateWeeks(str,weeks){
+  var d=pd(str);
+  return fd(new Date(d.getFullYear(),d.getMonth(),d.getDate()+7*weeks,12,0,0,0));
+}
+// אינדקס השבוע (יחסית ל-TL_START) של תאריך
+function weekIdxOf(str){return Math.round(diffW(TL_START,pd(str)));}
+// בגרירה/שינוי גודל מחשבים *הפרש שבועות* מתזוזת העכבר (dx) — לא גיאומטריה
+// אבסולוטית של הבלוק על המסך. ציר הזמן הפוך (RTL): ימינה = תאריך מוקדם יותר.
+function dxToWeeks(dx){return -Math.round(dx/WW());}
+
+// בזום מרוחק הבלוקים צרים מאוד (שבוע = כמה פיקסלים) ואילו ידיות שינוי הגודל
+// קבועות ב-7px מכל צד — הן היו בולעות את כל הבלוק, וניסיון לגרור אותו תפס
+// ידית ושינה את האורך. כאן מקטינים את הידיות ביחס לרוחב הבלוק.
+function fitHandles(blk,rh,lh){
+  var w=parseFloat(blk.style.width)||0;
+  var hw=Math.max(2,Math.min(7,Math.floor(w/4)));
+  rh.style.width=hw+'px';lh.style.width=hw+'px';
+}
 function makeDrag(blk,a){
-  var sx,sl,drag=false,moved=false,lastY=0,hoverRow=null;
+  var sx,sl,drag=false,moved=false,lastY=0,lastX=0,hoverRow=null;
   var DRAG_THRESHOLD=4; // פיקסלים — מתחת לזה זו לחיצה רגילה, לא גרירה
   function mv(e){
     if(!drag)return;
@@ -1987,7 +2009,7 @@ function makeDrag(blk,a){
       if(Math.abs(e.clientX-sx)<DRAG_THRESHOLD&&Math.abs(e.clientY-lastY)<DRAG_THRESHOLD)return;
       moved=true; // עכשיו זו באמת גרירה, לא לחיצה
     }
-    lastY=e.clientY;
+    lastY=e.clientY;lastX=e.clientX;
     blk.style.left=Math.max(0,sl+(e.clientX-sx))+'px';
     var rows=document.getElementById('tlbody').querySelectorAll('.tlrow, .ghdr-tl');
     var found=null;
@@ -2005,13 +2027,16 @@ function makeDrag(blk,a){
     document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
     document.getElementById('tlbody').querySelectorAll('.tlrow, .ghdr-tl').forEach(function(r){r.classList.remove('drop-row');});
     if(!moved)return; // לחיצה רגילה בלבד — לא לזוז/לשמור כלום, כדי לא "להעלים" משבצים בטעות
-    // RTL: left = dateX(end), after drag compute new end from left position
-    var newLeftX=parseFloat(blk.style.left);
-    var endWi=TL_WEEKS-1-Math.round(newLeftX/WW());
-    endWi=Math.max(0,Math.min(TL_WEEKS-1,endWi));
-    var dur=pd(a.end).getTime()-pd(a.start).getTime();
-    var ne=fd(wkDate(endWi));
-    var ns=fd(new Date(pd(ne).getTime()-dur));
+    // מחשבים הפרש שבועות שלמים מתזוזת העכבר ומזיזים את start ו-end יחד באותו
+    // הפרש — כך שמשך השיבוץ נשמר בדיוק (קודם: end חושב מהמיקום האבסולוטי על
+    // המסך ו-start מחושב ממנו לפי הפרש באלפיות שנייה, מה שיכול היה לעוות אורך)
+    var dxTotal=lastX-sx;
+    var k=dxToWeeks(dxTotal);
+    // לא לצאת מגבולות ציר הזמן: הקצה המאוחר חייב להישאר >=0, והמוקדם <= TL_WEEKS-1
+    var eIdx=weekIdxOf(a.end), sIdx=weekIdxOf(a.start);
+    k=Math.max(-eIdx,Math.min(TL_WEEKS-1-sIdx,k));
+    var ns=shiftDateWeeks(a.start,k);
+    var ne=shiftDateWeeks(a.end,k);
 
     var targetWid=hoverRow?hoverRow.dataset.wid:null;
     snapshot();
@@ -2032,20 +2057,28 @@ function makeDrag(blk,a){
   });
 }
 function makeResize(handle,blk,a){
-  // RIGHT handle = right side of block = dateX(start) = changes START
-  // drag right (positive dx) = x_right increases = start_week decreases = later start
-  // drag left (negative dx) = x_right decreases = start_week increases = earlier start
-  var sx,sw;
-  function mv(e){blk.style.width=Math.max(WW()*0.4,sw+(e.clientX-sx))+'px';}
+  // ידית ימנית = שינוי START. גרירה ימינה (dx>0) = start מוקדם יותר (הבלוק מתארך).
+  // מחושב כהפרש שבועות שלמים מ-start המקורי, ורק אם העכבר באמת זז — לחיצה
+  // פשוטה על הידית לא משנה כלום (קודם: חישוב מגיאומטריה גרם לעיוות של שבוע
+  // גם בלי תזוזה).
+  var sx,sw,moved=false,lastX=0,STEP_THRESHOLD=4;
+  function mv(e){
+    lastX=e.clientX;
+    if(!moved){if(Math.abs(e.clientX-sx)<STEP_THRESHOLD)return;moved=true;}
+    blk.style.width=Math.max(WW()*0.4,sw+(e.clientX-sx))+'px';
+  }
   function up(){
     document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
-    var l=parseFloat(blk.style.left),w=parseFloat(blk.style.width);
-    var startWi=TL_WEEKS-1-Math.floor((l+w)/WW());
-    snapshot();
-    a.start=fd(wkDate(Math.max(0,Math.min(TL_WEEKS-1,startWi))));
+    if(!moved)return;
+    var d=dxToWeeks(lastX-sx);
+    var newStart=shiftDateWeeks(a.start,d);
+    // start לא יכול לעבור את end, ולא לחרוג מימין לגבול ציר הזמן המאוחר
+    if(pd(newStart).getTime()>pd(a.end).getTime())newStart=a.end;
+    if(weekIdxOf(newStart)>TL_WEEKS-1)newStart=shiftDateWeeks(a.start,0);
+    if(newStart!==a.start){snapshot();a.start=newStart;}
     var _rs=saveScroll();save();render();restoreScroll(_rs);
   }
-  handle.addEventListener('mousedown',function(e){if(!EDIT_MODE)return;e.stopPropagation();e.preventDefault();sx=e.clientX;sw=parseFloat(blk.style.width);document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});
+  handle.addEventListener('mousedown',function(e){if(!EDIT_MODE)return;e.stopPropagation();e.preventDefault();sx=e.clientX;lastX=sx;moved=false;sw=parseFloat(blk.style.width);document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});
 }
 
 // ── holidays ──────────────────────────────────────────────────────────────────
@@ -2639,31 +2672,31 @@ function exportCSV(){
 }
 
 function makeResizeLeft(handle,blk,a){
-  // LEFT handle = left side of block = dateX(end) = changes END
-  // drag left (negative dx) = x_left decreases = end_week increases = earlier end
-  // drag right (positive dx) = x_left increases = end_week decreases = later end
-  var sx,sl,sw;
+  // ידית שמאלית = שינוי END. גרירה שמאלה (dx<0) = end מאוחר יותר (הבלוק מתארך).
+  // כמו בימנית: הפרש שבועות שלמים מה-end המקורי, ורק אם העכבר באמת זז.
+  var sx,sl,sw,moved=false,lastX=0,STEP_THRESHOLD=4;
   function mv(e){
+    lastX=e.clientX;
     var dx=e.clientX-sx;
-    var newLeft=Math.max(0,sl+dx);
-    var newW=Math.max(WW()*0.4,sw-dx);
-    blk.style.left=newLeft+'px';
-    blk.style.width=newW+'px';
+    if(!moved){if(Math.abs(dx)<STEP_THRESHOLD)return;moved=true;}
+    blk.style.left=Math.max(0,sl+dx)+'px';
+    blk.style.width=Math.max(WW()*0.4,sw-dx)+'px';
   }
   function up(){
     document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
-    snapshot();
-    var l=parseFloat(blk.style.left);
-    // left edge = l → end_week = TL_WEEKS-1 - round(l/WW)
-    var endWi=TL_WEEKS-1-Math.floor(l/WW());
-    snapshot();
-    a.end=fd(wkDate(Math.max(0,Math.min(TL_WEEKS-1,endWi))));
+    if(!moved)return;
+    var d=dxToWeeks(lastX-sx);
+    var newEnd=shiftDateWeeks(a.end,d);
+    // end לא יכול להקדים את start, ולא לחרוג משמאל לגבול ציר הזמן המוקדם
+    if(pd(newEnd).getTime()<pd(a.start).getTime())newEnd=a.start;
+    if(weekIdxOf(newEnd)<0)newEnd=a.end;
+    if(newEnd!==a.end){snapshot();a.end=newEnd;}
     var _rs=saveScroll();save();render();restoreScroll(_rs);
   }
   handle.addEventListener('mousedown',function(e){
     if(!EDIT_MODE)return;
     e.stopPropagation();e.preventDefault();
-    sx=e.clientX;sl=parseFloat(blk.style.left);sw=parseFloat(blk.style.width);
+    sx=e.clientX;lastX=sx;moved=false;sl=parseFloat(blk.style.left);sw=parseFloat(blk.style.width);
     document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
   });
 }
@@ -2846,16 +2879,16 @@ document.addEventListener('keydown',function(e){
   if((e.key==='v'||e.key==='V'||e.keyCode===86)&&(e.ctrlKey||e.metaKey)&&_clipboard){
     e.preventDefault();
     var targetWid=_hovWrkId||_clipboard.workerId;
-    var diff=pd(_clipboard.end).getTime()-pd(_clipboard.start).getTime();
+    var diffDays=Math.round((pd(_clipboard.end).getTime()-pd(_clipboard.start).getTime())/86400000); // אורך בימים שלמים (לא באלפיות שנייה — בטוח מול מעבר שעון)
     var newStart, newEnd;
     if(_hovWeekDate){
       // paste: hovered week = START (right side), block extends LEFT
       newStart=fd(sunday(pd(_hovWeekDate)));
-      newEnd=fd(new Date(pd(newStart).getTime()+diff));
+      newEnd=fd(hrAddDays(pd(newStart),diffDays));
     } else if(targetWid===_clipboard.workerId){
       // same worker, no hover position - shift 1 week after original
-      newStart=fd(new Date(pd(_clipboard.end).getTime()+7*86400000));
-      newEnd=fd(new Date(pd(newStart).getTime()+diff));
+      newStart=fd(hrAddDays(pd(_clipboard.end),7));
+      newEnd=fd(hrAddDays(pd(newStart),diffDays));
     } else {
       // different worker, keep same dates
       newStart=_clipboard.start;
