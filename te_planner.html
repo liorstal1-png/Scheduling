@@ -12,7 +12,9 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{--bg:#F5F4F0;--sur:#fff;--brd:#E0DED8;--txt:#1A1A18;--mut:#888780;--fnt:#B4B2A9;--acc:#378ADD;--r:8px;}
 body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column;overflow:hidden;direction:rtl;}
-.topbar{height:52px;background:var(--sur);border-bottom:1px solid var(--brd);display:flex;align-items:center;padding:0 10px;gap:6px;flex-shrink:0;}
+.topbar{height:52px;background:var(--sur);border-bottom:1px solid var(--brd);display:flex;align-items:center;padding:0 10px;gap:6px;flex-shrink:0;overflow-x:auto;overflow-y:hidden;}
+.topbar::-webkit-scrollbar{height:4px;}
+.topbar::-webkit-scrollbar-thumb{background:var(--brd);border-radius:2px;}
 .topbar h1{font-size:14px;font-weight:700;}
 .btn{font-family:'Heebo',sans-serif;font-size:12px;padding:6px 11px;border:1px solid var(--brd);border-radius:var(--r);background:var(--sur);cursor:pointer;color:var(--txt);white-space:nowrap;}
 .btn:hover{background:var(--bg);}
@@ -273,6 +275,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <div class="spacer"></div>
   <button class="btn" id="undoBtn" title="Ctrl+Z">↩ ביטול</button>
   <button class="btn" id="clearDepsBtn" title="נקה תלויות">🔗 נקה תלויות</button>
+  <button class="btn" id="blBtn" title="בייסליין — צילום מצב משימות להשוואה" style="padding:6px 7px;">📌</button>
   <button class="btn" id="reportsBtn">📊 דוחות</button>
   <button class="btn" id="exportImportBtn">📤 ייצוא/ייבוא</button>
   <input type="file" id="importXlsxInput" accept=".xlsx,.xls" style="display:none;"/>
@@ -452,6 +455,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
   <div class="ci" id="sprCtxEdit">✏️ ערוך ספרינט</div>
   <div class="ci del" id="sprCtxDel">🗑 מחק ספרינט</div>
 </div>
+<div class="ctx" id="baselineMenu" style="min-width:250px;"></div>
 <div class="ctx" id="reportsMenu">
   <div class="ci" id="reportsMenu-summary">📊 סיכום</div>
   <div class="ci" id="reportsMenu-tasksTable">📋 פירוט משימות</div>
@@ -597,6 +601,15 @@ var ZL=100, TL_WEEKS=24, MODE_WEEKS=false;
 var TODAY=new Date(); TODAY.setHours(12,0,0,0);
 var TL_START=sundayBefore(TODAY);
 var _hideTeams=true;
+// ── בייסליין: צילום מצב של כל המשימות (עד 3), והצגתו כשורה צרה מתחת לכל עובד ──
+// נשמר בתוך D.baselines — כלומר חלק מנתוני התוכנית עצמה, ולכן מסונכרן בין
+// מכשירים/טאבים יחד עם שאר התוכנית.
+var MAX_BL=3, BL_H=18, _activeBL=null; // _activeBL = אינדקס הבייסליין המוצג (null = אין תצוגה)
+function getBaselines(){if(!D.baselines)D.baselines=[];return D.baselines;}
+function blRowH(){
+  if(typeof SPRINT_CUT_MODE!=='undefined'&&SPRINT_CUT_MODE)return 0;
+  return (_activeBL!==null&&getBaselines()[_activeBL])?BL_H:0;
+}
 function toggleTeamsVisible(){
   _hideTeams=!_hideTeams;
   var btn=document.getElementById('toggleTeamsBtn');
@@ -645,7 +658,7 @@ function dateRight(s){return Math.round(diffW(TL_START,pd(s))*WW());}
 
 function saveData(){
   try{
-    var sd={D:D,ZL:ZL,TL_WEEKS:TL_WEEKS,TL_START:fd(TL_START),collapsed:collapsed,MODE_WEEKS:MODE_WEEKS};
+    var sd={D:D,ZL:ZL,TL_WEEKS:TL_WEEKS,TL_START:fd(TL_START),collapsed:collapsed,MODE_WEEKS:MODE_WEEKS,activeBL:_activeBL};
     sessionStorage.setItem(SK,JSON.stringify(sd));
     // sync D back to project storage
     var pid=sessionStorage.getItem('te_active_pid');
@@ -681,6 +694,7 @@ function loadData(){
     if(o.TL_START)TL_START=pd(o.TL_START);
     if(o.collapsed){collapsed=o.collapsed;if(!collapsed.groups)collapsed.groups={};if(!collapsed.teams)collapsed.teams={};}
     if(o.MODE_WEEKS!==undefined)MODE_WEEKS=o.MODE_WEEKS;
+    if(o.activeBL!==undefined&&o.activeBL!==null)_activeBL=o.activeBL;
     if(!D.groups)D.groups=[];if(!D.teams)D.teams=[];if(!D.sprints)D.sprints=[];if(!D.milestones)D.milestones=[];if(!D.nextMid)D.nextMid=1;if(!D.deps)D.deps=[];if(!D.nextDid)D.nextDid=1;
     // sprints are computed on-the-fly — clear any stale saved ones
     D.sprints=[];
@@ -829,7 +843,7 @@ function getRows(){
 }
 
 
-function rowH(r){return r.type==='group'?28:r.type==='team'?30:40;}
+function rowH(r){return r.type==='group'?28:r.type==='team'?30:40+blRowH();}
 
 function renderSidebar(){
   var sb=document.getElementById('sidebarBody');sb.innerHTML='';
@@ -885,6 +899,7 @@ function renderSidebar(){
     } else {
       el.className='tree-worker-row';
       el.dataset.wid=row.obj.id;
+      if(blRowH()){el.style.height=(40+blRowH())+'px';el.style.minHeight=(40+blRowH())+'px';} // מקום לשורת הבייסליין שמתחת לעובד בציר הזמן
       var grip=document.createElement('div');grip.className='row-grip';grip.textContent='⠿';grip.title='גרור כדי לשנות סדר';
       var dot=document.createElement('div');dot.className='wdot';dot.style.background=row.obj.color;
       var nm=document.createElement('span');nm.className='wname-edit';nm.contentEditable='true';nm.spellcheck=false;nm.textContent=row.obj.name;
@@ -1366,6 +1381,7 @@ function renderBody(TW,WW_){
       });
     }
     tb.appendChild(re);
+    if(row.type==='worker'&&blRowH())tb.appendChild(buildBaselineStrip(row.obj,TW,WW_));
   });
 }
 
@@ -2209,6 +2225,119 @@ function openToolbarMenu(e,menuId){
 }
 document.getElementById('reportsBtn').addEventListener('click',function(e){openToolbarMenu(e,'reportsMenu');});
 document.getElementById('exportImportBtn').addEventListener('click',function(e){openToolbarMenu(e,'exportImportMenu');});
+
+// ── בייסליין — בניית השורה, תפריט, שמירה ────────────────────────────────────
+function buildBaselineStrip(w,TW,WW_){
+  var bl=getBaselines()[_activeBL];
+  var strip=document.createElement('div');
+  strip.className='tlrow-bl';
+  strip.style.cssText='position:relative;display:flex;direction:rtl;width:'+TW+'px;height:'+BL_H+'px;flex-shrink:0;background:#F1EFE9;border-bottom:1px solid var(--brd);box-sizing:border-box;overflow:hidden;';
+  for(var i=0;i<TL_WEEKS;i++){
+    var wd=wkDate(i),isTW=TODAY.getTime()>=wd.getTime()&&TODAY.getTime()<wd.getTime()+7*86400000;
+    var c=document.createElement('div');c.className='tcell'+(isTW&&!MODE_WEEKS?' tw':'');c.style.width=WW_+'px';c.style.cursor='default';strip.appendChild(c);
+  }
+  (bl.tasks||[]).filter(function(t){return idEq(t.wid,w.id);}).forEach(function(t){
+    var r=dateRight(t.start),bw=(t.weeks||1)*WW_-2;
+    if(bw<2)return;
+    var cur=D.tasks.find(function(x){return idEq(x.id,t.id);});
+    var tip='[בייסליין: '+bl.name+'] '+t.name+'\n'+t.start+' → '+t.end;
+    var changed=false,deleted=false;
+    if(!cur){deleted=true;tip+='\nכיום: המשימה נמחקה מהתוכנית';}
+    else{
+      var dS=Math.round(diffW(pd(t.start),pd(cur.start))),dE=Math.round(diffW(pd(t.end),pd(cur.end)));
+      var movedOther=!idEq(cur.wid,t.wid);
+      if(dS!==0||dE!==0||movedOther){
+        changed=true;
+        tip+='\nכיום: '+cur.start+' → '+cur.end;
+        if(dS!==0)tip+='\nהתחלה: '+(dS>0?'+':'')+dS+' שבועות';
+        if(dE!==0)tip+='\nסיום: '+(dE>0?'+':'')+dE+' שבועות';
+        if(movedOther){var ow=D.workers.find(function(x){return idEq(x.id,cur.wid);});tip+='\nעברה לעובד: '+(ow?ow.name:'?');}
+      }else tip+='\nכיום: ללא שינוי';
+    }
+    var bar=document.createElement('div');
+    bar.style.cssText='position:absolute;top:2px;bottom:2px;right:'+r+'px;width:'+bw+'px;border-radius:3px;box-sizing:border-box;overflow:hidden;display:flex;align-items:center;padding:0 3px;'
+      +'background-color:'+(t.color||'#888')+';opacity:.62;'
+      +'background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(255,255,255,.35) 3px,rgba(255,255,255,.35) 6px);'
+      +((changed||deleted)?'outline:1.5px dashed #E24B4A;outline-offset:-1.5px;':'');
+    bar.title=tip;
+    var lb=document.createElement('span');
+    lb.style.cssText='font-size:9px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;'+(deleted?'text-decoration:line-through;':'');
+    lb.textContent=t.name;
+    bar.appendChild(lb);
+    strip.appendChild(bar);
+  });
+  return strip;
+}
+
+function buildBaselineMenu(){
+  var menu=document.getElementById('baselineMenu');
+  menu.innerHTML='';
+  var bls=getBaselines();
+  function sep(){var d=document.createElement('div');d.className='ci-sep';menu.appendChild(d);}
+  if(bls.length<MAX_BL){
+    var sv=document.createElement('div');sv.className='ci';sv.textContent='💾 שמור בייסליין חדש (מהמצב הנוכחי)';
+    sv.addEventListener('click',function(){saveNewBaseline();});
+    menu.appendChild(sv);
+    sep();
+  }
+  if(!bls.length){
+    var em=document.createElement('div');em.style.cssText='padding:8px 13px;font-size:12px;color:var(--mut);';em.textContent='אין בייסליינים שמורים';menu.appendChild(em);
+  }else{
+    bls.forEach(function(bl,i){
+      var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:4px;padding:3px 6px;';
+      var show=document.createElement('div');show.className='ci';
+      show.style.cssText='flex:1;padding:5px 7px;border-radius:5px;'+(_activeBL===i?'background:var(--acc);color:#fff;':'');
+      show.textContent=(_activeBL===i?'✓ ':'')+bl.name+' — '+bl.date;
+      show.addEventListener('click',function(){_activeBL=(_activeBL===i)?null:i;render();}); // סגירת התפריט נעשית ע"י לחיצה כללית
+      var ren=document.createElement('button');ren.textContent='✎';ren.title='שנה שם';
+      ren.style.cssText='background:none;border:none;cursor:pointer;color:var(--mut);font-size:13px;padding:0 3px;';
+      ren.addEventListener('click',function(e){
+        e.stopPropagation();
+        var nn=prompt('שם חדש לבייסליין:',bl.name);
+        if(nn===null)return;nn=nn.trim();if(!nn)return;
+        snapshot();bl.name=nn;saveData();buildBaselineMenu();if(_activeBL===i)render();
+      });
+      var del=document.createElement('button');del.textContent='✕';del.title='מחק בייסליין';
+      del.style.cssText='background:none;border:none;cursor:pointer;color:#E24B4A;font-size:12px;padding:0 3px;';
+      del.addEventListener('click',function(e){
+        e.stopPropagation();
+        if(!confirm('למחוק את הבייסליין "'+bl.name+'"?'))return;
+        snapshot();
+        bls.splice(i,1);
+        if(_activeBL===i)_activeBL=null;else if(_activeBL!==null&&_activeBL>i)_activeBL--;
+        saveData();buildBaselineMenu();render();
+      });
+      row.appendChild(show);row.appendChild(ren);row.appendChild(del);menu.appendChild(row);
+    });
+    if(_activeBL!==null){
+      sep();
+      var hide=document.createElement('div');hide.className='ci';hide.textContent='🚫 הסתר תצוגת בייסליין';
+      hide.addEventListener('click',function(){_activeBL=null;render();});
+      menu.appendChild(hide);
+    }
+  }
+}
+
+function saveNewBaseline(){
+  var bls=getBaselines();
+  if(bls.length>=MAX_BL){toast('הגעת למקסימום '+MAX_BL+' בייסליינים');return;}
+  var now=new Date();
+  var dateStr=now.getDate()+'/'+(now.getMonth()+1)+'/'+now.getFullYear();
+  var name=prompt('שם לבייסליין:','בייסליין '+(bls.length+1));
+  if(name===null)return;
+  name=name.trim()||('בייסליין '+(bls.length+1));
+  snapshot();
+  var tasks=D.tasks.map(function(t){
+    var w=D.workers.find(function(x){return idEq(x.id,t.wid);});
+    return {id:t.id,wid:t.wid,name:t.name,start:t.start,end:t.end,weeks:t.weeks||1,color:t.color||(w?w.color:'#378ADD')};
+  });
+  bls.push({id:'bl'+Date.now(),name:name,date:dateStr,tasks:tasks});
+  saveData();
+  toast('בייסליין "'+name+'" נשמר ✓ — בחר אותו בתפריט כדי להציג');
+}
+
+document.getElementById('blBtn').addEventListener('click',function(e){buildBaselineMenu();openToolbarMenu(e,'baselineMenu');});
+
 function openBlockCtx(e,tid){
   var menu=document.getElementById('ctxMenu');menu.innerHTML='';
   var t=D.tasks.find(function(x){return x.id===tid;});
@@ -3390,7 +3519,7 @@ setTimeout(function(){document.getElementById('tlwrap').scrollLeft=0;},100);
         localStorage.setItem('te_proj_'+pid,JSON.stringify(fbData));
         // עדכן D ישירות
         D=fbData.data;
-        var sd={D:D,ZL:ZL,TL_WEEKS:TL_WEEKS,TL_START:fd(TL_START),collapsed:collapsed,MODE_WEEKS:MODE_WEEKS};
+        var sd={D:D,ZL:ZL,TL_WEEKS:TL_WEEKS,TL_START:fd(TL_START),collapsed:collapsed,MODE_WEEKS:MODE_WEEKS,activeBL:_activeBL};
         sessionStorage.setItem(SK,JSON.stringify(sd));
         render();
         toast('🔄 נטען מהענן');
@@ -3402,7 +3531,7 @@ setTimeout(function(){document.getElementById('tlwrap').scrollLeft=0;},100);
     window._tePlannerLoad=function(remote){
       if(!remote||!remote.data) return;
       D=remote.data;
-      var sd={D:D,ZL:ZL,TL_WEEKS:TL_WEEKS,TL_START:fd(TL_START),collapsed:collapsed,MODE_WEEKS:MODE_WEEKS};
+      var sd={D:D,ZL:ZL,TL_WEEKS:TL_WEEKS,TL_START:fd(TL_START),collapsed:collapsed,MODE_WEEKS:MODE_WEEKS,activeBL:_activeBL};
       sessionStorage.setItem(SK,JSON.stringify(sd));
       render();
       toast('🔄 עודכן על ידי משתמש אחר');
