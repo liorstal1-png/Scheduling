@@ -347,6 +347,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
           if(!window.D.holidays) window.D.holidays = [];
           if(!window.D.parentProjects) window.D.parentProjects = [];
           if(!window.D.parentProjects) window.D.parentProjects = [];
+          if(window.reapplySprintRangeOnce) window.reapplySprintRangeOnce();
           if(typeof window.render === 'function') window.render();
           window.showToast && window.showToast('הנתונים עודכנו 🔄');
         }
@@ -664,6 +665,7 @@ body:not(.edit-mode) .edit-only{display:none!important;}
         <button class="btn btn-sm" onclick="quickRange(6)">6 חודשים</button>
         <button class="btn btn-sm" onclick="quickRange(12)">שנה</button>
         <button class="btn btn-sm" onclick="quickRange(24)">שנתיים</button>
+        <button class="btn btn-sm" onclick="setRangeStartToSprint()">🏁 מתחילת הספרינט</button>
       </div>
     </div>
     <div class="mfoot"><button class="btn" onclick="cm('rangemodal')">ביטול</button><button class="btn btn-p" onclick="applyRange()">החל</button></div>
@@ -847,6 +849,13 @@ function WW(){
   var wrap=document.getElementById('tlwrap');
   if(!wrap)return base;
   var avail=wrap.clientWidth||800;
+  // במצב התאמה לטווח (אחרי בחירת טווח) רוחב השבוע מדויק (עשרוני), כך שכל הטווח
+  // ממלא את הרוחב הפנוי בלי רווח ריק בסוף ובלי גלילה — פרט לטווחים ארוכים מאוד
+  // שבהם רצפת הזום (15%) קובעת ונשארת גלילה קלה.
+  if(typeof FIT_RANGE!=='undefined'&&FIT_RANGE&&TL_WEEKS>0){
+    var exact=avail/TL_WEEKS;
+    if(exact>=80*15/100)return exact;
+  }
   return Math.max(base, Math.floor(avail/TL_WEEKS));
 }
 function totalW(){return TL_WEEKS*WW();}
@@ -1935,6 +1944,13 @@ function renderFilter(){
     c.onclick=function(){RANGE_MONTHS=r.m;quickRange(r.m);};
     bar.appendChild(c);
   });
+  var spChip=document.createElement('div');
+  spChip.className='chip'+(RANGE_FROM_SPRINT?' on':'');
+  if(RANGE_FROM_SPRINT)spChip.style.background='#1D9E75';
+  spChip.textContent='🏁 מתחילת ספרינט';
+  spChip.title='הטווח יתחיל מתחילת הספרינט הנוכחי במקום מהשבוע הנוכחי';
+  spChip.onclick=toggleRangeFromSprint;
+  bar.appendChild(spChip);
   // Group chips (always visible)
   if(D.groups.length>0){
     bar.appendChild(mkSep());
@@ -2632,39 +2648,104 @@ function saveAssign(){
   }
   save();cm('amodal');render();
 }
+function setRangeStartToSprint(){
+  var st=currentSprintStart();
+  if(!st){showToast('לא נמצא ספרינט נוכחי');return;}
+  document.getElementById('rs').value=fd(st);
+}
 function openRangeM(){
-  document.getElementById('rs').value=fd(TODAY);
+  document.getElementById('rs').value=fd(rangeStartDate());
   document.getElementById('re').value=fd(addW(TODAY,TL_WEEKS));
   om('rangemodal');
 }
+// ── תחילת הטווח: השבוע הנוכחי (ברירת מחדל) או תחילת הספרינט הנוכחי ──────────
+// ספרינט "נוכחי" = אותו כלל שבו שורת הספרינטים מוצגת: השבוע (יום ראשון) נמצא בין
+// start ל-end+6 ימים. אם יש כמה — נבחר זה שהתחיל אחרון.
+var RANGE_FROM_SPRINT=false;
+try{RANGE_FROM_SPRINT=localStorage.getItem('gantt_range_from_sprint')==='1';}catch(e){}
+function currentSprintStart(){
+  var wd=sunday(TODAY).getTime(), found=null, foundT=-Infinity;
+  (D.sprints||[]).forEach(function(sv){
+    if(!sv.start||!sv.end)return;
+    var ss=pd(sv.start).getTime(), se=pd(sv.end).getTime()+6*86400000;
+    if(wd>=ss&&wd<=se&&ss>foundT){found=sv;foundT=ss;}
+  });
+  return found?sunday(pd(found.start)):null;
+}
+function rangeStartDate(){
+  if(RANGE_FROM_SPRINT){var st=currentSprintStart();if(st)return st;}
+  return sunday(TODAY);
+}
 function quickRange(months){
-  TL_START=sunday(TODAY);
-  TL_WEEKS=Math.round(months*4.33);
+  TL_START=rangeStartDate();
+  // הסוף נשאר כמו קודם (חודשים מהיום) — כשהטווח מתחיל מוקדם יותר מתחילת הספרינט,
+  // מוסיפים לו את השבועות שבין תחילת הספרינט להיום
+  var extra=Math.max(0,Math.round(diffW(TL_START,sunday(TODAY))));
+  TL_WEEKS=Math.round(months*4.33)+extra;
+  FIT_RANGE=true;
   autoZoom();
   cm('rangemodal');render();scrollToToday();
 }
+function toggleRangeFromSprint(){
+  RANGE_FROM_SPRINT=!RANGE_FROM_SPRINT;
+  try{localStorage.setItem('gantt_range_from_sprint',RANGE_FROM_SPRINT?'1':'0');}catch(e){}
+  if(RANGE_FROM_SPRINT&&!currentSprintStart())showToast('לא נמצא ספרינט נוכחי — הטווח יתחיל מהשבוע הנוכחי');
+  quickRange(RANGE_MONTHS);
+}
+// נתוני השיבוץ יכולים להגיע מהענן רק אחרי הטעינה הראשונה — אם הטווח הוגדר
+// "מתחילת ספרינט" ובעת הטעינה עדיין לא היו ספרינטים, נחשב אותו פעם אחת כשהם מגיעים
+var _sprintRangePending=false;
+window.reapplySprintRangeOnce=function(){
+  if(!_sprintRangePending)return;
+  if(RANGE_FROM_SPRINT&&currentSprintStart()){_sprintRangePending=false;quickRange(RANGE_MONTHS);}
+};
 function applyRange(){
   var s=document.getElementById('rs').value, e=document.getElementById('re').value;
   if(!s||!e)return;
   TL_START=sunday(pd(s));
   TL_WEEKS=Math.max(4,Math.ceil(diffW(TL_START,pd(e))));
+  FIT_RANGE=true;
   autoZoom();
   cm('rangemodal');render();scrollToToday();
 }
 
 // ── zoom ──────────────────────────────────────────────────────────────────────
+// מצב "התאמה לטווח": כל עוד הוא פעיל (אחרי בחירת טווח), ציר הזמן מותאם מחדש
+// אוטומטית בכל פעם שהרוחב הפנוי משתנה (שינוי רוחב הפאנלים, שינוי גודל החלון,
+// הופעת פס גלילה אנכי). זום ידני (+/−) מכבה אותו, כדי לא לדרוס בחירה ידנית.
+var FIT_RANGE=true, _lastFitAvail=0;
 function autoZoom(){
-  // מתאים את הזום כך שכל הטווח שנבחר ייכנס בבת אחת ברוחב המסך בפועל —
-  // בלי צורך לגלול ולהשתמש בסיידבר, כמו בתוכנית העבודה.
+  // מתאים את הזום כך שכל הטווח שנבחר ייכנס בבת אחת ברוחב הפנוי בפועל. לוקחים
+  // רוחב שבוע *שלם* (floor) כדי שלא ייווצר גלישה קטנה (פס גלילה אופקי) בגלל
+  // עיגול כלפי מעלה; בטווחים ארוכים מאוד (רצפת זום) נשארת גלילה מעט, כמצופה.
   var wrap=document.getElementById('tlwrap');
   var avail=(wrap&&wrap.clientWidth)||1200;
-  var idealWW=avail/TL_WEEKS; // פיקסלים לשבוע כדי שהכול ייכנס בדיוק
-  ZL=Math.round(idealWW/80*100);
-  ZL=Math.max(15,Math.min(200,ZL)); // רצפה נמוכה יותר מבעבר — כדי שטווחים ארוכים (כמו שנתיים) באמת ייכנסו כולם, לא רק עד רצפה של 40%
+  _lastFitAvail=avail;
+  var wwFit=Math.max(1,Math.floor(avail/TL_WEEKS)); // פיקסלים לשבוע כדי שהכול ייכנס
+  ZL=Math.floor(wwFit*100/80);
+  ZL=Math.max(15,Math.min(200,ZL)); // רצפה נמוכה — כדי שטווחים ארוכים (כמו שנתיים) ייכנסו כמה שאפשר
   document.getElementById('zlbl').textContent=ZL+'%';
 }
+(function(){
+  var _fitT=null;
+  function refit(){
+    if(!FIT_RANGE)return;
+    var wrap=document.getElementById('tlwrap');
+    if(!wrap||!wrap.clientWidth)return;
+    if(Math.abs(wrap.clientWidth-_lastFitAvail)<2)return;  // אין שינוי ממשי ברוחב
+    autoZoom();
+    render();
+  }
+  function schedule(){clearTimeout(_fitT);_fitT=setTimeout(refit,120);}
+  window.addEventListener('resize',schedule);
+  if(typeof ResizeObserver!=='undefined'){
+    var tw=document.getElementById('tlwrap');
+    if(tw)new ResizeObserver(schedule).observe(tw);
+  }
+})();
 
 function doZoom(dir){
+  FIT_RANGE=false; // זום ידני — לא להתאים אוטומטית מחדש
   var steps=[40,60,80,100,130,160,200];
   var idx=steps.findIndex(function(s){return s>=ZL;});if(idx===-1)idx=steps.length-1;
   idx=Math.max(0,Math.min(steps.length-1,idx+dir));
@@ -5027,6 +5108,7 @@ window.toggleTPPanel = toggleTPPanel;
 // ── init ────────────────────────────────────────────────────────────────────
 console.log("INIT TL_START="+fd(TL_START)+" TODAY="+fd(TODAY));
 renderColors();quickRange(3);
+if(RANGE_FROM_SPRINT&&!currentSprintStart())_sprintRangePending=true;
 setTimeout(function(){
   initPanelResize("rh-pp","ppanel",80,320);
   initPanelResize("rh-sb","sidebar",120,420);
