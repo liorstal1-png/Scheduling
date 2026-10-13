@@ -153,14 +153,15 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .blk-content{display:flex;align-items:center;gap:3px;position:sticky;right:6px;max-width:calc(100% - 12px);overflow:hidden;flex-shrink:0;}
 .btitle{font-weight:600;white-space:nowrap;font-size:11px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;}
 
-.bedit{opacity:0;background:rgba(255,255,255,.22);border:none;cursor:pointer;font-size:10px;padding:1px 4px;border-radius:3px;color:#fff;position:absolute;left:2px;top:50%;transform:translateY(-50%);z-index:6;}
+.bedit.bedit-narrow{display:none !important;}
+.bedit{opacity:0;background:rgba(255,255,255,.22);border:none;cursor:pointer;font-size:10px;padding:1px 4px;border-radius:3px;color:#fff;position:absolute;left:9px;top:50%;transform:translateY(-50%);z-index:6;}
 .binput{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.5);border-radius:3px;color:#fff;font-family:'Heebo',sans-serif;font-size:11px;padding:1px 5px;width:90px;outline:none;direction:rtl;}
 .blk-notefield{font-size:10px;color:rgba(255,255,255,.95);outline:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:text;border-radius:3px;padding:1px 3px;direction:rtl;flex:0 1 auto;min-width:0;}
 .blk-notefield:focus{background:rgba(255,255,255,.15);white-space:normal;overflow:visible;}
 
 .binput::placeholder{color:rgba(255,255,255,.6);}
-.rhandle{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;}
-.lhandle{position:absolute;left:0;top:0;bottom:0;width:7px;cursor:col-resize;}
+.rhandle{position:absolute;right:0;top:0;bottom:0;width:7px;cursor:col-resize;z-index:7;}
+.lhandle{position:absolute;left:0;top:0;bottom:0;width:7px;cursor:col-resize;z-index:7;}
 .lhandle:hover{background:rgba(255,255,255,.3);}
 .rhandle:hover{background:rgba(255,255,255,.3);}
 
@@ -1333,15 +1334,17 @@ function render(){
         });
         if(!_ok)return;
       }
-      var _blH2t=(_activeBL!==null&&getBaselines()[_activeBL])?20:0;
-      var _tpH2t=(_tpActive&&_tpActive.size>0)?22:0;
+      // שורת העובד עצמה היא בגובה RH בלבד. שורת הבייסליין (20px) ושורת משימות
+      // תוכנית העבודה (22px) נבנות כשורות נפרדות מתחתיה (ראה בהמשך), והסיידבר
+      // מקצה לעובד גובה RH+תוספות — לכן אין להוסיף כאן את התוספות (הוספה כפולה
+      // שברה את היישור ואת תצוגת המשימות מתחת לעובד).
       var row=document.createElement('div');
-      row.className='tlrow'; row.style.width=TW+'px'; row.style.height=(RH+_blH2t+_tpH2t)+'px'; row.dataset.wid=w.id;
+      row.className='tlrow'; row.style.width=TW+'px'; row.style.height=RH+'px'; row.dataset.wid=w.id;
       for(var i=TL_WEEKS-1;i>=0;i--){
         var d=wkDate(i), isTW=TODAY.getTime()>=d.getTime()&&TODAY.getTime()<d.getTime()+7*86400000;
         var _holSet=getHolWeeks(); var isHolW=_holSet.has(i);
       var c=document.createElement('div'); c.className='tcell'+(isTW?' tw':'')+(isHolW?' hol':'');
-        c.style.width=WW_+'px'; c.style.height=(RH+_blH2t+_tpH2t)+'px';
+        c.style.width=WW_+'px'; c.style.height=RH+'px';
         row.appendChild(c);
       }
       D.assignments.filter(function(a){return a.workerId===w.id;}).forEach(function(a){
@@ -1991,6 +1994,26 @@ function weekIdxOf(str){return Math.round(diffW(TL_START,pd(str)));}
 // בגרירה/שינוי גודל מחשבים *הפרש שבועות* מתזוזת העכבר (dx) — לא גיאומטריה
 // אבסולוטית של הבלוק על המסך. ציר הזמן הפוך (RTL): ימינה = תאריך מוקדם יותר.
 function dxToWeeks(dx){return -Math.round(dx/WW());}
+// כמה שבועות להזיז בגרירת גוף הבלוק (ממוסגר לגבולות ציר הזמן) — משמש גם
+// לתצוגה המקדימה בזמן הגרירה וגם לשמירה, כך שהתצוגה זהה בדיוק לתוצאה.
+function dragShiftWeeks(a,dx){
+  var k=dxToWeeks(dx);
+  var eIdx=weekIdxOf(a.end), sIdx=weekIdxOf(a.start);
+  return Math.max(-eIdx,Math.min(TL_WEEKS-1-sIdx,k));
+}
+// end/start חדשים בשינוי גודל (ידית שמאלית משנה end, ימנית משנה start)
+function calcNewEnd(a,dx){
+  var ne=shiftDateWeeks(a.end,dxToWeeks(dx));
+  if(pd(ne).getTime()<pd(a.start).getTime())ne=a.start;   // end לא לפני start
+  if(weekIdxOf(ne)<0)ne=a.end;                             // לא מעבר לגבול ציר הזמן
+  return ne;
+}
+function calcNewStart(a,dx){
+  var ns=shiftDateWeeks(a.start,dxToWeeks(dx));
+  if(pd(ns).getTime()>pd(a.end).getTime())ns=a.end;       // start לא אחרי end
+  if(weekIdxOf(ns)>TL_WEEKS-1)ns=a.start;
+  return ns;
+}
 
 // בזום מרוחק הבלוקים צרים מאוד (שבוע = כמה פיקסלים) ואילו ידיות שינוי הגודל
 // קבועות ב-7px מכל צד — הן היו בולעות את כל הבלוק, וניסיון לגרור אותו תפס
@@ -1999,6 +2022,10 @@ function fitHandles(blk,rh,lh){
   var w=parseFloat(blk.style.width)||0;
   var hw=Math.max(2,Math.min(7,Math.floor(w/4)));
   rh.style.width=hw+'px';lh.style.width=hw+'px';
+  // בבלוק צר כפתור העריכה (✏️) יושב על מרכז הבלוק ובולע את הלחיצה — אי אפשר
+  // לתפוס ולגרור. בבלוקים כאלה העריכה זמינה בקליק ימני → "ערוך".
+  var eb=blk.querySelector('.bedit');
+  if(eb)eb.classList.toggle('bedit-narrow',w<64);
 }
 function makeDrag(blk,a){
   var sx,sl,drag=false,moved=false,lastY=0,lastX=0,hoverRow=null;
@@ -2010,7 +2037,9 @@ function makeDrag(blk,a){
       moved=true; // עכשיו זו באמת גרירה, לא לחיצה
     }
     lastY=e.clientY;lastX=e.clientX;
-    blk.style.left=Math.max(0,sl+(e.clientX-sx))+'px';
+    // תצוגה מקדימה צמודה לשבועות, ללא חסימה ב-0 — חסימה כזו גרמה לבלוק ארוך
+    // שחורג מהטווח "לקפוץ" ולכסות את כל ציר הזמן בזמן הגרירה
+    blk.style.left=(sl-dragShiftWeeks(a,e.clientX-sx)*WW())+'px';
     var rows=document.getElementById('tlbody').querySelectorAll('.tlrow, .ghdr-tl');
     var found=null;
     rows.forEach(function(r){
@@ -2030,11 +2059,7 @@ function makeDrag(blk,a){
     // מחשבים הפרש שבועות שלמים מתזוזת העכבר ומזיזים את start ו-end יחד באותו
     // הפרש — כך שמשך השיבוץ נשמר בדיוק (קודם: end חושב מהמיקום האבסולוטי על
     // המסך ו-start מחושב ממנו לפי הפרש באלפיות שנייה, מה שיכול היה לעוות אורך)
-    var dxTotal=lastX-sx;
-    var k=dxToWeeks(dxTotal);
-    // לא לצאת מגבולות ציר הזמן: הקצה המאוחר חייב להישאר >=0, והמוקדם <= TL_WEEKS-1
-    var eIdx=weekIdxOf(a.end), sIdx=weekIdxOf(a.start);
-    k=Math.max(-eIdx,Math.min(TL_WEEKS-1-sIdx,k));
+    var k=dragShiftWeeks(a,lastX-sx);
     var ns=shiftDateWeeks(a.start,k);
     var ne=shiftDateWeeks(a.end,k);
 
@@ -2058,27 +2083,28 @@ function makeDrag(blk,a){
 }
 function makeResize(handle,blk,a){
   // ידית ימנית = שינוי START. גרירה ימינה (dx>0) = start מוקדם יותר (הבלוק מתארך).
-  // מחושב כהפרש שבועות שלמים מ-start המקורי, ורק אם העכבר באמת זז — לחיצה
-  // פשוטה על הידית לא משנה כלום (קודם: חישוב מגיאומטריה גרם לעיוות של שבוע
-  // גם בלי תזוזה).
-  var sx,sw,moved=false,lastX=0,STEP_THRESHOLD=4;
+  // מחושב כהפרש שבועות שלמים מה-start המקורי, ורק אם העכבר באמת זז — לחיצה
+  // פשוטה על הידית לא משנה כלום. התצוגה בזמן הגרירה זהה לתוצאה הסופית.
+  var sx,sl0,moved=false,lastX=0,STEP_THRESHOLD=4;
   function mv(e){
     lastX=e.clientX;
     if(!moved){if(Math.abs(e.clientX-sx)<STEP_THRESHOLD)return;moved=true;}
-    blk.style.width=Math.max(WW()*0.4,sw+(e.clientX-sx))+'px';
+    var ns=calcNewStart(a,e.clientX-sx);
+    blk.style.width=Math.max(WW()*0.4,dateX(ns)+WW()-sl0)+'px'; // הקצה הימני עוקב אחרי ה-start החדש
   }
   function up(){
     document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
     if(!moved)return;
-    var d=dxToWeeks(lastX-sx);
-    var newStart=shiftDateWeeks(a.start,d);
-    // start לא יכול לעבור את end, ולא לחרוג מימין לגבול ציר הזמן המאוחר
-    if(pd(newStart).getTime()>pd(a.end).getTime())newStart=a.end;
-    if(weekIdxOf(newStart)>TL_WEEKS-1)newStart=shiftDateWeeks(a.start,0);
+    var newStart=calcNewStart(a,lastX-sx);
     if(newStart!==a.start){snapshot();a.start=newStart;}
     var _rs=saveScroll();save();render();restoreScroll(_rs);
   }
-  handle.addEventListener('mousedown',function(e){if(!EDIT_MODE)return;e.stopPropagation();e.preventDefault();sx=e.clientX;lastX=sx;moved=false;sw=parseFloat(blk.style.width);document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);});
+  handle.addEventListener('mousedown',function(e){
+    if(!EDIT_MODE)return;
+    e.stopPropagation();e.preventDefault();
+    sx=e.clientX;lastX=sx;moved=false;sl0=parseFloat(blk.style.left);
+    document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);
+  });
 }
 
 // ── holidays ──────────────────────────────────────────────────────────────────
@@ -2673,23 +2699,21 @@ function exportCSV(){
 
 function makeResizeLeft(handle,blk,a){
   // ידית שמאלית = שינוי END. גרירה שמאלה (dx<0) = end מאוחר יותר (הבלוק מתארך).
-  // כמו בימנית: הפרש שבועות שלמים מה-end המקורי, ורק אם העכבר באמת זז.
+  // הקצה הימני של הבלוק נשאר קבוע; ה-end החדש נקבע בשבועות שלמים, והתצוגה
+  // בזמן הגרירה זהה לתוצאה הסופית (בלי חסימה ב-0 שגרמה לעיוות בבלוקים ארוכים).
   var sx,sl,sw,moved=false,lastX=0,STEP_THRESHOLD=4;
   function mv(e){
     lastX=e.clientX;
-    var dx=e.clientX-sx;
-    if(!moved){if(Math.abs(dx)<STEP_THRESHOLD)return;moved=true;}
-    blk.style.left=Math.max(0,sl+dx)+'px';
-    blk.style.width=Math.max(WW()*0.4,sw-dx)+'px';
+    if(!moved){if(Math.abs(e.clientX-sx)<STEP_THRESHOLD)return;moved=true;}
+    var ne=calcNewEnd(a,e.clientX-sx);
+    var nl=dateX(ne);
+    blk.style.left=nl+'px';
+    blk.style.width=Math.max(WW()*0.4,sl+sw-nl)+'px';
   }
   function up(){
     document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);
     if(!moved)return;
-    var d=dxToWeeks(lastX-sx);
-    var newEnd=shiftDateWeeks(a.end,d);
-    // end לא יכול להקדים את start, ולא לחרוג משמאל לגבול ציר הזמן המוקדם
-    if(pd(newEnd).getTime()<pd(a.start).getTime())newEnd=a.start;
-    if(weekIdxOf(newEnd)<0)newEnd=a.end;
+    var newEnd=calcNewEnd(a,lastX-sx);
     if(newEnd!==a.end){snapshot();a.end=newEnd;}
     var _rs=saveScroll();save();render();restoreScroll(_rs);
   }
