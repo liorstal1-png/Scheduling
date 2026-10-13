@@ -96,7 +96,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--txt);height
 .tlwrap::-webkit-scrollbar-track{background:var(--bg);}
 .tlwrap::-webkit-scrollbar-thumb{background:#B4B2A9;border-radius:8px;border:3px solid var(--bg);}
 .tlwrap::-webkit-scrollbar-thumb:hover{background:var(--acc);}
-.tlinner{display:inline-block;position:relative;direction:ltr;}
+.tlinner{display:inline-block;position:relative;direction:ltr;overflow-x:clip;} /* חיתוך אופקי לרוחב הציר: בלוק שחורג מהטווח (שיבוץ ארוך) לא מרחיב את אזור הגלילה מעבר לסוף הציר. clip ולא hidden — כדי שהכותרת הדביקה תמשיך לעבוד */
 
 /* Sprint row */
 .sprrow{display:flex;align-items:center;border-bottom:1px solid var(--brd);background:var(--bg);direction:ltr;}
@@ -2670,7 +2670,13 @@ function currentSprintStart(){
     var ss=pd(sv.start).getTime(), se=pd(sv.end).getTime()+6*86400000;
     if(wd>=ss&&wd<=se&&ss>foundT){found=sv;foundT=ss;}
   });
-  return found?sunday(pd(found.start)):null;
+  if(!found)return null;
+  // שבוע שייך לספרינט רק אם יום הראשון שלו >= תאריך ההתחלה (כמו בשורת הספרינטים).
+  // לכן אם הספרינט מתחיל באמצע שבוע — השבוע הראשון שלו הוא יום הראשון *הבא*,
+  // ולא יום הראשון שלפניו (זה היה גורם לטווח להתחיל שבוע לפני הספרינט).
+  var d=pd(found.start);
+  if(d.getDay()!==0)d=new Date(d.getFullYear(),d.getMonth(),d.getDate()+(7-d.getDay()),12,0,0,0);
+  return sunday(d);
 }
 function rangeStartDate(){
   if(RANGE_FROM_SPRINT){var st=currentSprintStart();if(st)return st;}
