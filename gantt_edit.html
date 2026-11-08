@@ -1189,7 +1189,12 @@ function render(){
 
   // ── body ──
   var body=document.getElementById('tlbody');
-  body.innerHTML=''; body.style.width=TW+'px'; body.style.height=totalH+'px';
+  body.innerHTML=''; body.style.width=TW+'px';
+  // גובה גוף הציר נקבע לפי התוכן שמצויר בפועל (לא לפי totalH): totalH נספר מכל
+  // העובדים שעברו את fws(), אבל שורות של עובדים/צוותים בלי שיבוץ בטווח הנראה
+  // לא מצוירות (סינון לפי פרויקט). גובה קבוע גדול מהתוכן האריך את אזור הגלילה של
+  // ציר הזמן מעבר לסיידבר — ובגלילה למטה הציר המשיך והסיידבר נעצר.
+  body.style.height='';
   // שורת אבני דרך
   // clear milestone flags from tl-hdr
   var _th=document.getElementById('tl-hdr');
@@ -1575,7 +1580,7 @@ function render(){
   // today line
   var tx=dateX(fd(TODAY));
   var tl=document.getElementById('todayline');
-  if(tx>=0&&tx<=TW){tl.style.display='block';tl.style.left=tx+'px';tl.style.height=totalH+'px';}
+  if(tx>=0&&tx<=TW){tl.style.display='block';tl.style.left=tx+'px';tl.style.height=body.offsetHeight+'px';}
   else tl.style.display='none';
 
   // sidebar stop height
